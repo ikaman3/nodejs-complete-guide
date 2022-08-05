@@ -8,13 +8,17 @@ const express = require('express');
 
 const app = express();
 
-// app.use로 전달하는 이 함수는 모든 요청에 대해 실행된다.
-app.use((req, res, next) => {
-    console.log('In the middleware!');
+app.use('/', (req, res, next) => {
+    console.log('This always runs!!!');
     next();
 });
 
-app.use((req, res, next) => {
+app.use('/add-product', (req, res, next) => {
+    console.log('In another middleware!');
+    res.send('<h1>The add product page');
+});
+
+app.use('/', (req, res, next) => {
     console.log('In another middleware!');
     res.send('<h1>Hello from Express!!');
 });
