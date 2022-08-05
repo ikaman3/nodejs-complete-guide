@@ -33,3 +33,22 @@ router.use('/',  (req, res, next) => {...});
 그러나 get 메서드를 사용하면 순서에 상관없이 쓸 수 있다.
 router.get 은 GET 메서드임을 확인할 뿐만 아니라 정확한 경로임을 확인하기 때문이다. 따라서 이제 무작위 경로를 입력하면 에러가 난다.
 이제 이를 처리할 단일 미들웨어가 존재하지 않기 때문이다.
+
+=================================================================================================================
+68_Route filtering
+
+Express Router의 기능 중 하나이다.
+
+app.use(adminRoutes);
+app.use(shopRoutes);
+위의 구문처럼 app.js 에 추가한 아웃소싱 라우트들이 있는데 이러한 아웃소싱 라우트들은 시작경로를 공유하는 경우가 많다.
+
+router.get('/admin/add-product', (req, res, next) => {...});
+router.post('/admin/add-product',  (req, res, next) => {...});
+모든 admin 라우트가 admin/add-product 로 트리거된다고 가정하자
+메서드가 get, post 로 다르기 때문에 같은 경로를 사용해도 된다. 이 둘은 서로 다른 라우트가 된다. 즉, 메서드가 다르면 같은 경로를 사용할 수 있다
+
+이러한 라우터 파일의 경로가 같은 구간에서 시작하는 경우 해당 구간을 app.js 에 추가하여 필터로 추가할 수 있다.
+app.use('/admin', adminRoutes);
+/admin 으로 시작하는 라우트만 adminRoutes 파일로 들어간다. 또한, express에서 라우트를 매칭하려 할 때 URL에서 이 /admin 부분을 생략하거나 무시할 수 있다.
+요청할 때는 /admin/add-product 로 요청해야 한다.
