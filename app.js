@@ -5,23 +5,18 @@ const http = require('http');
 
 // third party modules
 const express = require('express');
+const bodyParser = require('body-parser');
 
 const app = express();
 
-app.use('/', (req, res, next) => {
-    console.log('This always runs!!!');
-    next();
-});
+// 내가 임포트한 파일
+const adminRoutes = require('./routes/admin');
+const shopRoutes = require('./routes/shop');
 
-app.use('/add-product', (req, res, next) => {
-    console.log('In another middleware!');
-    res.send('<h1>The add product page');
-});
+app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use('/', (req, res, next) => {
-    console.log('In another middleware!');
-    res.send('<h1>Hello from Express!!');
-});
+app.use(adminRoutes);
+app.use(shopRoutes);
 
 // const server = http.createServer(app);
 // server.listen(3000);
