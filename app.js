@@ -10,6 +10,9 @@ const bodyParser = require('body-parser');
 
 const app = express();
 
+app.set('view engine', 'pug');
+app.set('views', 'views');
+
 // 내가 임포트한 파일
 const adminData = require('./routes/admin');
 const shopRoutes = require('./routes/shop');
