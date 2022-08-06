@@ -95,3 +95,92 @@ pug 의 조건문
 
 * 템플릿 파일은 변경해도 nodemon에 의해 서버가 재시작되지 않거나 재시작하지 않아도 제대로 작동한다. 왜냐하면 템플릿은 Server side 코드에 포함되지 않기 때문이다.
 단순히 상황에 따라 선정되는 요소에 불과하다. 따라서 다음번에 들어오는 요청을 위해 템플릿을 변경하는 경우 새로운 버전을 자동으로 받아들일 것이다.
+=====================================================================================================================
+85_Layout
+
+기존 템플릿에서 기본 구조를 이루는 코드가 계속 반복되고 있다. 이를 수동으로 진행하는 것은 귀찮은 일이다. 
+이를 위해 레이아웃을 생성할 수 있다. 
+views에 하위폴더 layouts 를 생성하고 그 안에 main-layout.pug 를 생성한다.
+
+이 레이아웃은 다른 pug view의 내부로부터 확장할 수 있으며 플레이스홀더나 훅을 정의하여 다른 view의 콘텐츠를 유입시킬 수 있다.
+doctype html
+html(lang="kr")
+    head
+        ...
+        block styles 
+    body 
+        ...       
+        block content 
+block: pug가 인식하는 키워드
+styles: 개발자가 정의한 변수 이름
+
+이제 레이아웃을 사용할 파일로 이동하여 레이아웃을 지정한다.
+extends layouts/main-layout.pug
+
+block styles 
+        link(rel="stylesheet", href="/css/forms.css") <== 디폴트 레이아웃에 없는 추가하고 싶은 구문
+        link(rel="stylesheet", href="/css/product.css")
+
+block content
+    h1 Page Not Found!
+=====================================================================================================================
+86_pug 템플릿 완성
+
+admin.js =>
+    res.render('add-product', { pageTitle: 'Add Product', path: '/admin/add-product' });
+
+main-layout.pug =>
+    a(href="/admin/add-product", class=(path === '/admin/add-product' ? 'active' : '')) Add Product        
+render에서 view로 넘기는 객체에 path 속성을 추가한다. 이때 실제 경로일 필요는 없고 단지 어디에서 호출된 것인지 구분하기 위한 것이다.
+
+    title #{pageTitle}
+템플릿에서 들여 쓴 후 title을 블록으로 만들거나 #{}을 사용해 동적 출력(Dynamic Output)으로 pageTitle을 추가할 수 있다.
+이 앱에서는 후자의 방식을 사용했으므로 모든 render() 함수가 pageTitle을 지나도록 해야 한다.
+    res.status(404).render('404', { pageTitle: 'Page Not Found!' });
+=====================================================================================================================
+87_handlebars
+
+    const expressHbs = require('express-handlebars');
+먼저 app.js에서 뷰 엔진을 변경해야 한다. 이때 handlebars는 Express에 의해 자동으로 설치되는 패키지는 아니라서 수동으로 등록해야 한다.
+일단 위의 구문으로 Express에 이러한 엔진이 있다는 걸 알린다.
+
+    app.engine('hbs', expressHbs()); 
+내장되어 있지 않은 엔진 등록
+* expressHbs() => 함수가 초기 설정된 뷰 엔진을 반환해서 engine에 넣는다.
+    app.set('view engine', 'hbs');
+
+views 폴더에 404.hbs 파일을 생성한다. 이때 확장자는 엔진 이름으로 정의한 hbs를 넣어야 한다. 만약 다른 이름으로 정의했다면 그것과 똑같이 한다.
+
+문법
+기본적으로 HTML과 똑같은 태그를 사용하여 복사-붙여넣기로 시작한다.
+    <title>{{ pageTitle }}</title>
+이때 pageTitle 처럼 템플릿에 데이터를 전달하는 방식은 엔진이 모두 동일하다. 객체에 키-값 쌍을 넣어서 템플릿에서 사용할 수 있다.
+
+- 조건문
+    {{#if hasProducts }}
+    <div class="grid">
+        ...
+    </div>
+    {{else}}
+        ...
+    {{/if}}
+조건문을 사용할 때 주의할 점은 products > 0 같은 구문을 지원하지 않고 true / false를 출력하는 키만 지원한다.
+즉, 템플릿의 논리를 Express 코드로 옮겨서 확인하고 확인 결과를 템플릿에 넣어야 한다. 따라서 shop.js 파일에 템플릿에 넣을 키-값 쌍을 추가한다.
+    res.render('shop', { prods: products, pageTitle: 'Shop', path: '/', hasProducts: products.length > 0 });
+이 부분이 pug와 가장 다른 점이다. handlebars 템플릿은 논리를 실행할 수 없고 단일 속성, 단일 변수나 그 값만 출력할 수 있다.
+복잡하게 보일 수도 있지만 모든 논리를 Express 코드에 넣도록 제한하여 템플릿을 깔끔하게 유지할 수 있다.
+템플릿에 논리를 너무 많이 넣으면 코드를 이해하기 어려워질 수 있다.
+
+- 반복문
+    {{#each prods}}
+        ...
+    {{/each}}
+안의 요소들이 각 배열의 원소마다 반복될 것이다. 즉, 반복문 안의 html 코드가 모든 제품에 반복될 것이다.
+배열의 원소 각각에 접근하는 방법은 한 가지뿐이다. 배열의 요소 중에 현재 반복에 해당하는 키워드를 보여준다. 
+    <h1 class="product__title">{{ this.title }}</h1>
+이때 하나의 객체를 참조하는데 그 객체는 admin.js 파일에 있는 배열에 저장된 자바스크립트 객체이다. 바로 이 부분이다.
+    // '/admin/add-product' POST
+    router.post('/add-product',  (req, res, next) => {
+        products.push({ title: req.body.title });
+        res.redirect('/');
+    });
