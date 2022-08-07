@@ -21,11 +21,11 @@ package.json의 scripts에 추가
 // 개별 설정된 이름이 있는 일반 스크립트
 "start-server": "node app.js" // npm run start-server : 기본으로 존재하지 않는 스크립트는 run 키워드 이용
 
-
 설치한 npm modules list
 nodemon --g
 express --save
 body-parser --save
+ejs --save
 
 <nodemon>
 노드 애플리케이션을 실행하고 파일들의 변경 내역을 확인하여 무언가 변경하는 경우 프로세스를 재시작 한다.
