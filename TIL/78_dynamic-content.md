@@ -184,3 +184,63 @@ views 폴더에 404.hbs 파일을 생성한다. 이때 확장자는 엔진 이�
         products.push({ title: req.body.title });
         res.redirect('/');
     });
+=====================================================================================================================
+90_handlebars Layout
+
+핸들바에서 레이아웃을 사용하려면 app.js 의 엔진을 등록하는 곳에서 몇 가지 옵션을 전달해야 한다.
+    app.engine('hbs', expressHbs({ 
+        layoutsDir: 'views/layouts/', 
+        defaultLayout: 'main-layout', 
+        extname: 'hbs' 
+    }));
+- layoutDir: 레이아웃이 어디에 위치할지 즉, 레이아웃을 찾을 수 있는 폴더를 설정한다.
+기본값은 view/layouts/ 이지만 기본값이므로 굳이 설정할 필요는 없다. 만약 폴더가 다른경우 설정해야 한다.
+
+- defaultLayout: 모든 파일에 적용되는 기본 레이아웃을 정의한다.
+
+- extname: 레이아웃은 디폴트로 파일 확장자를 .handlebars 으로 사용하므로 이 속성에 문자열로 원하는 확장자를 명시해야 한다. 
+
+    {{{ body }}}
+플레이스홀더를 설정한다. 레이아웃을 자동으로 확장하는 views에서 지정할 수 있는데 기본 레이아웃으로 설정해놨기 때문이다.
+접속하는 페이지에 따라 일부 스타일링을 추가해야 하는 부분이 있는 경우 if문으로 추가할 수 있다. 더 다양한 기능이 있으므로 공식 문서를 참조한다.
+main-layout.hbs =>
+    {{#if formsCSS }}
+    <link rel="stylesheet" href="/css/forms.css">
+    {{/if}}
+    {{#if productCSS }}
+    <link rel="stylesheet" href="/css/product.css">
+    {{/if}}
+
+    ...
+
+    <li class="main-header__item"><a class="{{#if activeShop}}active{{/if}}" href="/">Shop</a></li>
+    <li class="main-header__item"><a class="{{#if activeAddProduct}}active{{/if}}" href="/admin/add-product">Add Product</a></li>
+이 변수들은 .js에서 view로 전달해야 하고 만약 전달하지 않으면 항상 거짓으로 취급되므로 참으로 처리되길 원하는 경우에만 전달하면 된다.
+
+shop.js =>
+    res.render('shop', { 
+        prods: products,
+        pageTitle: 'Shop',
+        path: '/', 
+        hasProducts: products.length > 0,
+        activeShop: true,
+        productCSS: true,
+        // layout: false
+    });
+- layout: 핸들바가 인식하는 특별한 키에 해당하며 false일 경우 기본 레이아웃을 사용하지 않는다. 이 앱은 기본 레이아웃을 사용하므로 제외한다.
+
+이제 레이아웃을 사용하길 원하는 템플릿 파일에서 중괄호 3개 안에 들어간 body 위치에 렌더링 되어야 하는 부분을 제외하고 모두 제거한다.
+    <main>
+        <form class="product-form" action="/admin/add-product" method="POST">
+            <div class="form-control">
+                <label for="title">Title</label>
+                <input type="text" name="title" id="title">
+            </div>
+
+            <button class="btn" type="submit">Add Product</button>
+        </form>
+    </main>
+=====================================================================================================================
+91_EJS
+
+pug처럼 즉시 지원되는 템플릿 엔진이므로 등록 과정은 생략한다.
