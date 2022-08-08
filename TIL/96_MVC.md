@@ -115,4 +115,98 @@ controllers/products.js =>
 그리고 save() 메서드를 호출하여 저장한다.
     const products = Product.fetchAll();
 모든 제품을 가져오기 위해 새로운 제품을 생성하지 않고 대신 static method를 이용한다. 수행되면 products에 모든 제품의 목록이 담긴 배열이 반환될 것이다.
+======================================================================================================================================
+101_model을 통해 파일에 데이터 저장하기
 
+    save() {
+            const p = path.join(
+                path.dirname(require.main.filename), 
+                'data', 
+                'products.json'
+            );
+            fs.readFile(p, (err, fileContent) => {
+                let products = [];
+                if (!err) {
+                    products = JSON.parse(fileContent);
+                }
+                products.push(this);
+                fs.writeFile(p, JSON.stringify(products), (err) => {
+                    console.log(err);
+                });
+            });
+    }
+- path.dirname(require.main.filename): root directory
+단지 루트 디렉토리이므로 이 안에 새로 data 폴더를 생성하여 권한 문제를 방지한다. 그리고 그 안에 파일('products.json')을 생성한다.
+- fs.readFile(...): 저장을 하기전 일단 파일을 읽어야 한다. readFile은 파일의 전체 콘텐츠를 읽어온다. 파일 크기가 큰 경우 더 효율적인 방법으로 createReadStread이라는 함수를 쓸 수 있다. 
+첫 번째 인자 p는 파일을 읽어올 경로를 의미한다. 
+두 번째 인자는 콜백 함수로 오류와, 데이터, 즉 파일 콘텐츠를 가져오고 읽어오는 게 끝나면 실행할 작업을 작성한다.
+fileContent의 파일이 JSON 파일이므로 JSON 형식으로 저장한다. parse 메서드는 들어오는 JSON을 받아서 자바스크립트 배열, 객체 또는 파일에 있는 내용을 반환한다. 
+- products.push(this): this가 클래스를 참조하도록 하기 위해 위의 readFile에 화살표 함수를 사용해줘야 한다. 그렇지 않으면 문맥을 잃어버리고 더 이상 클래스를 참조하지 않는다.
+fs.writeFile(...): 다시 JSON 헬퍼 객체를 사용한다. 이때 자바스크립트 객체나 배열을 가져다가 JSON으로 변환하는 stringify 메서드를 사용할 수 있다. 그러면 products 배열을 JSON으로 변환하고 파일에 작성하게 된다.
+
+    static fetchAll() {
+        const p = path.join(
+            path.dirname(require.main.filename), 
+            'data', 
+            'products.json'
+        );
+        fs.readFile(p, (err, fileContent) => {
+            if (err) {
+                return [];
+            }
+            return JSON.parse(fileContent);
+        });
+    }
+- JSON.parse(fileContent): parse를 사용하지 않으면 단순한 문자열이 반환된다. 텍스트 형식을 배열로 반환해준다.
+======================================================================================================================================
+102_model을 통해 파일에 데이터 저장하기 2
+
+    fs.readFile(p, (err, fileContent) => {
+        if (err) {
+            return [];
+        }
+        return JSON.parse(fileContent);
+    });
+
+위의 코드에서 products에 length가 없다는 오류가 나타난다. 이 코드는 비동기식 코드라는 것을 기억해야 한다.
+fetchAll 메서드는 이 콜백을 Event Emmiter Registry에 등록하여 배치한다. 그러나 그 다음 이 함수를 그냥 끝내버리고 이 함수는 그 자체로 아무것도 리턴하지 않는다. 리턴문이 fetchAll 에서 리턴하는게 아닌 안쪽의 readFile에 포함되기 때문에 fetchAll이 아무것도 반환하지 않는다.
+이 문제를 해결하기 위해 몇 가지 방법이 있는데 지금은 단순히 fetchAll에 콜백 인수를 포함시킨다.
+    static fetchAll(callback) {
+        const p = path.join(
+            path.dirname(require.main.filename), 
+            'data', 
+            'products.json'
+        );
+        fs.readFile(p, (err, fileContent) => {
+            if (err) {
+                callback([]);
+            }
+            callback(JSON.parse(fileContent));
+        });
+    }
+이를 통해 fetchAll에 함수를 전달할 수 있게 되고 함수가 끝난 뒤 fetchAll이 함수를 실행한다. fetchAll을 호출하는 것은 함수를 전달할 수 있고 이후 반환하려는 데이터의 호출을 인식한다. 이 콜백을 호출하면 fetchAll을 호출하는 컨트롤러로 이동하고 함수 내부로 전달하게 된다.
+
+    exports.getProducts = (req, res, next) => {
+        Product.fetchAll((products) => {
+            res.render('shop', { 
+                prods: products,
+                pageTitle: 'Shop',
+                path: '/',
+            });
+        });
+    };
+이 함수를 통해 products를 얻고, fetchAll 함수가 아무것도 반환하지 않기 때문에 products를 저장할 필요는 없다. 
+대신 나만의 콜백 과정을 생성하고 제품을 모두 가져오는 과정이 끝난 뒤에 fetchAll에 전달하게 될 함수에 렌더링한다.
+이때 products는 receive하게 되는데 이것은 fetchAll에 전달하는 인수에 해당하고 이 콜백 인수는 fetchAll에 전달할 익명 함수를 참조한다.
+- 익명 함수: 
+        (products) => {
+            res.render('shop', { 
+                prods: products,
+                pageTitle: 'Shop',
+                path: '/',
+            });
+        }
+readFile이 사용하는 논리와 동일하다. 직접 정의하지는 않았지만 마찬가지로 콜백을 받는다. 
+완료된 뒤 readFile이 실행할 함수를 전달한다.
+
+fetchAll을 통해 완료된 함수를 실행하도록 받아들임 -> 끝난 뒤 products가 나오고 -> 이 products를 통해 응답을 렌더링한다. 
