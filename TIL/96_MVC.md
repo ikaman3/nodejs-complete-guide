@@ -16,3 +16,103 @@ MVC는 Models, Views, Controllers 로 구성되어 있다.
 - Routes: 어떤 경로에 따른 http 메서드에 따라 어떤 컨트롤러 코드를 실행할지 정의한다.
 
 바로 이것이 패턴이며 만든 앱처럼 Express가 내장된 앱은 미들웨어 개념을 기반으로 하고 있다. 컨트롤러는 미들웨어 기능 간에 분할되는데, 일부 논리가 분리되어 다른 미들웨어 기능으로 이동하는 것이다.
+======================================================================================================================================
+98_Controller 추가하기
+
+컨트롤러를 추가하여도 라우팅 방법은 변하지 않는다. router로 다음과 같은 미들웨어 함수를 사용한다.
+    (req, res, next) => {
+        const products = adminData.products;
+        res.render('shop', { 
+            prods: products,
+            pageTitle: 'Shop',
+            path: '/',
+        });
+    };
+하지만 이 논리는 전형적인 컨트롤러의 논리이다. 한 줄뿐이긴 하지만 데이터와 교류하고 있고(adminData.products) 뷰를 반환하는 것이 정확히 컨트롤러를 구성하는 중간 논리(In-between Logic)이다. 따라서 이미 이 앱은 컨트롤러 논리가 있다. 그러나 지금처럼 routes 파일에 모든 것을 몰아넣으면 아주 큰 파일이 되기 십상이라 여러 파일에 나누는 것이 좋다.
+그러면 어떤 라우트가 있고 또 라우트마다 실행하는 코드가 무엇인지 해당하는 컨트롤러 파일과 함수에서 알 수 있다.
+
+일단 controllers 폴더를 생성한다. 그리고 폴더에 가지고 있는 기능에 대한 컨트롤러를 생성한다. 이때 라우트 파일 이름 및 라우트 파일 번호와 컨트롤러 파일을 일대일로 맵핑할 수 있는데 다른 식으로 나눌 수도 있다. 예를 들어 접두사에 따라 라우트를 그룹화할 수 있다. 
+products.js 파일을 생성하고 제품 관련 논리를 모두 이동시킨다. 그리고 제품 컨트롤러 파일에서 내보내기 한다. 
+    exports.getAddProduct = (req, res, next) => {
+        res.render('add-product', { 
+            pageTitle: 'Add Product', 
+            path: '/admin/add-product', 
+        });
+    };
+
+그리고 admin.js 파일에서 제품 컨트롤러를 불러오기 한다.
+admin.js =>
+    const productsController = require('../controllers/products');
+이제 productsController가 products.js 파일의 모든 exports 함수를 묶는다. 그러므로 productsController의 getAddProduct를 추가하면 된다.
+    router.get('/add-product', productsController.getAddProduct);
+이때 실행하지 않도록 괄호는 쓰지 않는다. 함수에 참조만 전달하는 것이다. 쉽게 말해, Express 라우터에 이 함수를 저장해두고 라우트에 요청이 도착할 때마다 이 함수를 실행하라고 알리는 것이다.
+
+shop.js 에서도 동일한 작업을 진행한다.
+
+404 페이지도 동일한 작업을 하면 되나, 오류 관련 페이지이므로 products 컨트롤러에 포함하기 보다는 error 를 전문으로 책임지는 컨트롤로를 생성하는 것이 올바르다.
+controllers 폴더에 error.js 파일을 생성한다.
+error.js =>
+    exports.get404 = (req, res, next) => {
+        res.status(404).render('404', { 
+            pageTitle: 'Page Not Found!', 
+            path: ''
+        });
+    };
+======================================================================================================================================
+100_Model 추가하기
+
+일단 이 앱의 모델의 문제점은 매우 단순하다는 점이다. 제품은 이런 형상을 지니는 객체로서 즉석에서 생성된다.
+    const products = [];
+        res.render('add-product', { 
+            pageTitle: 'Add Product', 
+            path: '/admin/add-product', 
+        });
+
+일단 모델을 분리하기 위해 models 폴더를 생성한다. 이로써 MVC 패턴의 구조가 완성되었다. 여기에 product.js 파일을 생성한다.
+이때 복수형이 아니라 단수형인 product.js 인 이유는 최종 코어 데이터는 하나의 제품이므로 단일 엔티티를 나타내려고 한다.
+* Core Data: 제품의 모습, 제품이 보유한 영역, 이미지나 제목의 보유 여부 등의 단일 데이터의 구조를 말한다. 단일 제품이야말로 앱을 최종적으로 내지는 부분적으로 정의하는 요소이다.
+
+모델의 정의는 개발자가 결정한다. 단순히 구축자 함수를 내보낼 수도 있다.
+    module.exports = function Product() {
+        ...
+    }
+이처럼 ES5 구축자 함수를 사용하여 호출한 뒤 새로운 객체들을 생성할 수 있다. 그러나 차세대 JavaScript를 사용한다면 class 를 생성할 수 있다.
+    module.exports = class Product {
+        ...
+    }
+
+
+    const products = [];
+
+    module.exports = class Product {
+        constructor(t) {
+            this.title = t;
+        }
+
+        save() {
+            products.push(this);
+        }
+
+        static fetchAll() {
+            return products;
+        }
+    }
+이 클래스에서는 제품의 형태를 정의하려는데 이를 위해 먼저 생성자 함수를 생성한다. 여기서 제품에 대한 title을 수신하고 컨트롤러 내부에서 생성한다.
+- this.title: 이 클래스의 Property(속성)이다. 클래스 내부의 변수와 같다고 할 수 있다. 이 클래스에 속성을 생성하고 있는데 나중에 이 클래스를 기반으로 객체를 생성함으로써
+New로 호출하게 될 생성자로 title을 전달할 수 있게 된다. 
+- save(): 그리고 제품 배열에 제품을 생성 또는 저장하고 가져올 수 있도록 save() 메서드를 작성한다. 이를 위해 products 배열을 전역 변수로 도입한다. 추후에 데이터베이스로 변경할 것이다. save() 메서드는 function 키워드가 빠진 걸 제외하면 함수와 동일하다. 여기서 this 는 클래스를 기반으로 생성된 객체를 참조할 것인데 이 배열에 저장하고자 하는 바로 그 객체가 해당된다.
+- fetchAll(): 해당 배열로부터 모든 제품을 반환받고 싶을 것이다. 이를 위해 일종의 유틸리티 함수라고 할 수 있는 fetchAll() 메서드를 작성한다. 모든 제품을 가져와야 하므로 제품의 단일 인스턴스에는 호출되지 않는다. 그리고 모든 존재하는 제품을 가져오기 위해 New 키워드에 더미 타이틀을 붙여서 새로운 객체를 생성하고 싶지는 않다. 따라서 자바스크립트에서 제공하는 static 키워드를 추가한다. 이걸 사용하면 예시된 객체가 아니라 클래스 자체에 직접 이 메서드를 호출할 수 있게 된다. 
+이때 this.products가 아니라 products를 반환해야 한다. 클래스의 로컬 속성은 존재하지 않기 때문이다.
+
+그리고 컨트롤러에서 이 클래스를 임포트 한다. 이때 클래스 이름은 대문자로 시작하는 것이 관습이다.
+controllers/products.js =>
+    const Product = require('../models/product');
+이 클래스 설계도를 토대로 새로운 객체를 생성할 텐데 이처럼 클래스는 최종적으로 설계도 역할을 맡는다.
+    
+    const product = new Product(req.body.title);
+새로운 제품을 로컬 상수와 동일하게끔 생성한다.
+    product.save();
+그리고 save() 메서드를 호출하여 저장한다.
+    const products = Product.fetchAll();
+모든 제품을 가져오기 위해 새로운 제품을 생성하지 않고 대신 static method를 이용한다. 수행되면 products에 모든 제품의 목록이 담긴 배열이 반환될 것이다.
+
