@@ -1,17 +1,8 @@
 [
 	{
-		"title": "safasf"
-	},
-	{
-		"title": "naver"
-	},
-	{
-		"title": "new sss"
-	},
-	{
-		"title": "1111"
-	},
-	{
-		"title": "Second Book"
+		"title": "A Book",
+		"imageUrl": "https://www.publicdomainpictures.net/pictures/10000/velka/1-1210009435EGmE.jpg",
+		"description": "This is an awesome book!!!\r\n",
+		"price": "19.99"
 	}
 ]
