@@ -82,3 +82,29 @@ controllers/shop.js => exports.getProduct
 ======================================================================================================================================
 122_POST 요청으로 데이터 전달하기
 
+Add to Cart는 POST 요청을 보낸다. 중요한 사실은 req.body를 통해 데이터를 전달할 수 있다는 점이다. get 요청에서는 불가능하다. 그러나 post 요청에서는 일반적으로 req.body를 사용한다. 이미 제품 추가에서 사용했었다.
+
+form 태그는 자동으로 모든 입력 데이터가 body에 포함된 요청을 준다. 그러나 post 데이터만 가능하다. 데이터를 get 할 때는 사용할 수 없지만 post 할 때는 url에 정보를 추가할 필요가 없다. 정보를 post body에 넣으면 되기 때문이다. 
+views/shop/product-list.ejs =>
+    <input type="hidden" name="productId" value="<%= product.id %>">
+input을 추가하고 타입은 히든으로 하면, 페이지에 표시되지 않지만 전송되는 요청에는 인코딩된다. 
+
+routes/shop.js =>
+    router.post('/cart', shopController.postCart);
+라우트 추가
+
+controllers/shop.js =>
+    exports.postCart = (req, res, next) => {
+        const productId = req.body.productId;
+        console.log(productId);
+        res.redirect('/cart');
+    };
+컨트롤러 추가
+
+form 구문이 여러 파일에서 반복되므로 includes에 add-to-cart.ejs 템플릿 추가
+이때 product-list.ejs 에서 에러가 발생하는데 
+    <% for (let product of prods) { %>
+        ...
+    <%- include('../includes/add-to-cart.ejs', {product: product}) %>
+    
+product가 해당 루프에서만 사용 가능한 로컬 변수이기 때문이다. 따라서 루프에 포함된 include에서는 기본적으로 이 변수를 받지 못한다. 이를 위해 include 함수에 두 번째 인자로 객체를 입력하고 변수를 추가한다. 이때도 역시 오른쪽 product는 이 파일에서 사용 가능한 값이며, 왼쪽 product는 키 값이다.
