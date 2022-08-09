@@ -108,3 +108,69 @@ form 구문이 여러 파일에서 반복되므로 includes에 add-to-cart.ejs �
     <%- include('../includes/add-to-cart.ejs', {product: product}) %>
     
 product가 해당 루프에서만 사용 가능한 로컬 변수이기 때문이다. 따라서 루프에 포함된 include에서는 기본적으로 이 변수를 받지 못한다. 이를 위해 include 함수에 두 번째 인자로 객체를 입력하고 변수를 추가한다. 이때도 역시 오른쪽 product는 이 파일에서 사용 가능한 값이며, 왼쪽 product는 키 값이다.
+======================================================================================================================================
+123_Cart 추가하기
+
+models 폴더에 cart.js 파일을 생성한다. 장바구니는 이 프로젝트에서 독립된 대상으로 볼 수 있기 때문이다.
+이제 cart를 어떻게 관리할 지 고민해야 한다. 
+우선 cart에 추가한 제품이 모두 보관되어야 한다. 또한 제품을 ID로 묶어서 같은 제품을 하나 이상 추가할 경우 수량이 증가하도록 해야한다. 이를 구현하기 위해 먼저 새로운 cart를 생성하는 생성자를 쓸 수 있다.
+    constructor() {
+        this.products = [];
+        this.totalPrice = 0;
+    }
+- this.products: 하나의 배열이며 이 안에 ID나 중요한 정보가 담긴 객체가 들어가며 제품의 수량도 들어간다.
+
+이제 장바구니에 필요한 것은 제품을 추가/삭제할 수 있는 메서드다. 그러나 문제는 장바구니 자체가 계속해서 다시 생성할 객체는 아니라는 점이다. 새로운 제품을 추가할 때마다 새로운 cart를 만들지 않는다. 대신 앱 내에 하나의 장바구니가 있고 거기에서 제품을 관리하기를 원한다. 따라서 위의 생성자 대신 다른 접근법을 써본다.
+    module.exports = class Cart {
+        static addProduct(id, productPrice) {
+            // Fetch the previous cart
+            fs.readFile(p, (err, fileContent) => {
+                let cart = { products: [], totalPrice: 0 };
+                if (!err) {
+                    cart = JSON.parse(fileContent);
+                }
+                // Analyze the cart => Find existing product
+                const existingProductIndex = cart.products.findIndex(
+                    prod => prod.id === id
+                );
+                const existingProduct = cart.products[existingProductIndex];
+                let updatedProduct;
+                // Add new product/ increase quantity
+                if (existingProduct) { // 같은 제품이 이미 있는 경우
+                    updatedProduct = { ...existingProduct };
+                    updatedProduct.qty += 1;
+                    cart.products = [...cart.products];
+                    cart.products[existingProductIndex] = updatedProduct;
+                } else { // 새로 추가하는 제품인 경우
+                    updatedProduct = { id: id, qty: 1 };
+                    cart.products = [...cart.products, updatedProduct];
+                }
+                cart.totalPrice += +productPrice;
+                fs.writeFile(p, JSON.stringify(cart), err => {
+                    console.log(err);
+                });
+            });
+        }
+    };
+- id, productPrice: 추가하길 원하는 제품의 id, price
+- updatedProduct = { ...existingProduct } : 차세대 자바스크립트의 객체 스프레드 연산자를 사용한다. existingProduct의 모든 속성을 새로운 객체에 추가한다.
+- updatedProduct.qty += 1: 스프레드 연산자로 existingProduct의 모든 속성을 updatedProduct에 분배했으므로 updatedProduct는 qty 속성을 가지고 있다.
+- cart.products = [...cart.products, updatedProduct]: 기존 cart를 갱신한다. 기존 cart + 새로 추가된 제품을 저장한다.
+- cart.products = [...cart.products];
+  cart.products[existingProductIndex] = updatedProduct;
+만약 이미 추가된 제품이라면 새 제품을 등록하지 않고 기존 제품을 대체한다. 그러기 위해서 기존 제품이 저장된 인덱스가 필요하기 때문에 findIndex 메서드를 사용하여 일치하는 id 값을 가진 원소의 인덱스를 알아낸다. 그리고나서 해당 인덱스의 제품의 수량을 +1 한 제품을 덮어쓰기 한다. 따라서 기존 위치의 요소를 updatedProduct로 교체하게 된다.
+- cart.totalPrice += +productPrice; : cart.js에서 추출하는 가격은 product 모델에 문자열 형태로 저장되어 있어 + 연산을 했을 때 문자열이 연결되어 버린다. 그러므로 productPrice를 다룰 때는 앞에 + 기호를 붙여서 문자열을 숫자로 변환한다. 
+- fs.writeFile(p, JSON.stringify(cart), err => { ... }: 장바구니 추가를 완료했으니 이제 저장하면 된다.
+
+controllers/shop.js =>
+    const Cart = require('../models/cart');
+    ...
+    exports.postCart = (req, res, next) => {
+        const productId = req.body.productId;
+        Product.findById(productId, (product) => {
+            Cart.addProduct(productId, product.price);
+        });
+        res.redirect('/cart');
+    };
+- Product.findById(productId, (product) => {...}: product를 가져올 콜백이 있다. 여기에는 products 데이터베이스 또는 products 파일에서 가져온 product가 있다. 이걸 얻으면 제품 정보를 사용해서 cart를 갱신할 수 있다. 
+- Cart.addProduct(productId, product.price): cart 모델은 기본적으로 유틸리티 모델 역할을 한다. 인스턴스를 생성하는게 아닌 정적 함수를 사용한다.
