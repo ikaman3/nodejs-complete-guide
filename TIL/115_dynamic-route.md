@@ -51,3 +51,34 @@ controllers/shop.js =>
 - req.params.productId: 요청을 액세스할 수 있으며 Express.js는 이미 요청에 대한 params 객체를 제공한다. 
 이 params 객체에서 productId에 접근할 수 있다. 이때 productId 이름은 routes/shop.js 에서 콜론 다음에 정의한 이름을 사용한다. 
 ======================================================================================================================================
+121_제품 상세 보기 렌더링
+
+뷰를 추가하거나 기존 뷰에 논리를 추가한다. 기본 템플릿을 복사하여 시작한다.
+views/shop/product-detail.ejs =>
+    <main class="centered">
+        <h1><%= product.title %></h1>
+        <hr>
+        <div>
+            <img src="<%= product.imageUrl %>" alt="<%= product.title %>">
+        </div>
+        <h2><%= product.price %></h2>
+        <p><%= product.description %></p>
+        <form action="/cart" method="POST">
+            <button class="btn" type="submit">Add to Cart</button>
+        </form>
+    </main>
+
+이제 detail 라우트에 대해 뷰를 렌더링하도록 설정한다.
+controllers/shop.js => exports.getProduct
+    const productId = req.params.productId;
+    Product.findById(productId, product => {
+        res.render('shop/product-detail', { 
+            product: product,
+            pageTitle: product.title,
+            path: '/products'
+        });
+    });
+- 콜론 오른쪽의 product는 데이터를 가져올 product이고, 왼쪽의 product는 단순히 key이며 이를 통해 뷰에서 액세스 한다. 
+======================================================================================================================================
+122_POST 요청으로 데이터 전달하기
+
