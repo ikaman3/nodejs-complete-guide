@@ -226,3 +226,51 @@ views/admin/edit-product.ejs =>
     <form class="product-form" action="/admin/<% if (editing) { %>edit-product<% } else { %>add-product<% } %>" method="POST"></form>
 
 - ejs의 문법을 이용하여 동적으로 뷰에 보여줄 콘텐츠를 변경한다. form 태그의 action 속성처럼 url에 세그먼트를 주입할 수 있는데 결국에는 텍스트로 변환되기 때문이다. 이것은 모든 템플릿 엔진의 공통점이다. 이를 활용하여 editing 변수의 값에 따라 보이는 뷰를 동적으로 제공한다.
+======================================================================================================================================
+127_제품 데이터 편집하기, 데이터 업데이트 방법
+
+이미 확보한 기능을 업데이트에 활용할 수 있다.
+models/products.js => save()
+    getProductsFromFile(products => {
+        if (this.id) {
+            const existingProductIndex = products.findIndex(
+                prod => prod.id === this.id
+                );
+                const updatedProduct = [...products];
+                updatedProduct[existingProductIndex] = this;
+                fs.writeFile(p, JSON.stringify(updatedProduct), (err) => {
+                    console.log(err);
+                });
+        } else {
+            this.id = Math.random().toString();
+            products.push(this);
+            fs.writeFile(p, JSON.stringify(products), (err) => {
+                console.log(err);
+            });
+        }
+    });
+- if (this.id) ~ else : id가 이미 있다면 기존 제품을 업데이트(덮어쓰기)하고, id가 없다면(null) 새로운 제품을 생성하는 로직이다. 그래도 어차피 모든 제품은 알아야하므로 콜백 안에서 업데이트 한다.
+- const existingProductIndex = products.findIndex(prod => prod.id === this.id);
+: products는 배열에 해당하고 임시 prod 인수 또는 익명 함수의 prod 임수에 저장되어 있는 모든 제품에 액세스하고 이 배열에 찾는 제품의 ID가 this.id와 같은지 확인한다. 달리 말하면 편집하려는 제품을 현재 보고 있다면(찾았다면) 그 제품의 인덱스를 저장한다.
+- updatedProduct[existingProductIndex] = this : 클래스 내부에 있는 this는 이미 업데이트된(사용자가 편집한 값이 생성자를 통해 들어온 상황) 제품이며 새로운 제품 인스턴스를 생성하고 기존 제품에 관한 정보로 채울 것이다.
+즉, save() 메서드를 호출한 시점에서 사용자의 입력 값은 받은 상태이고 이것을 기존 데이터에 덮어쓰기하면 되는 것이다.
+
+이렇게 save 함수로 새 제품을 추가할 수도 있고, 기존 제품을 편집할 수도 있게 되었다. 그러므로 새 제품을 추가하는 컨트롤러에 argument를 추가해야 한다.
+controllers/admin.js => exports.postAddProduct
+    const product = new Product(null, title, imageUrl, description, price);
+exports.postEditProduct =>
+    const prodId = req.body.productId
+    ...
+    const updatedProduct = new Product(
+        prodId, 
+        updatedTitle, 
+        updatedImageUrl, 
+        updatedDesc, 
+        updatedPrice
+    );
+    updatedProduct.save();
+    res.redirect('/admin/products');
+- POST 요청이기 때문에 Request body에서 해당 정보를 가져올 수 있다. 이를 위해 view에서 제품 ID를 전송하는 hidden input을 추가한다.
+    <% if (editing) { %>
+        <input type="hidden" value="<%= product.id %>" name="productId">
+    <% } %>
