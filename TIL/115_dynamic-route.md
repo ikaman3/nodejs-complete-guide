@@ -274,3 +274,40 @@ exports.postEditProduct =>
     <% if (editing) { %>
         <input type="hidden" value="<%= product.id %>" name="productId">
     <% } %>
+======================================================================================================================================
+128_제품 삭제 기능
+
+삭제 기능 구현 과정은 업데이트와 거의 동일하다. 뷰에서 id를 hidden으로 전달하고 라우트를 거치고 삭제 컨트롤러를 만든다. 컨트롤러에서는 models의 클래스에 정의된 delete 메서드를 호출할 것이니 product 클래스에 delete 메서드를 작성한다. 이때 객체를 생성하려는 게 아니므로 정적 메서드로 정의한다.
+
+models/product.js => static deleteById
+    static deleteById(id) {
+        getProductsFromFile(products => {
+            const product = products.find(prod => prod.id === id);
+            const updatedProducts = products.filter(prod => prod.id !== id);
+            fs.writeFile(p, JSON.stringify(updatedProducts), err => {
+                if (!err) {
+                    Cart.deleteProduct(id, product.price);
+                }
+            });
+        });
+    }
+- filter: 익명 함수 중 하나이다. 함수의 반환 기준에 맞지 않는 모든 요소를 새로운 배열로 반환한다. 즉, () 안의 조건을 부합한다면 true를 반환하고 요소가 유지된다. 그럼 삭제하려는 ID와 다른 ID를 가진 모든 요소를 유지해서 파일에 새로운 배열에 쓰이게끔 하면 된다. 
+
+제품이 삭제되었으니 장바구니에서 해당 제품도 삭제되어야 한다.
+models/cart.js => static deletePrduct
+    fs.readFile(p, (err, fileContent) => {
+        if (err) {
+            return;
+        }
+        const updatedCart = { ...JSON.parse(fileContent) };
+        const product = updatedCart.products.find(prod => prod.id === id);
+        const productQty = product.qty;
+
+        updatedCart.products = updatedCart.products.filter(prod => prod.id !== id);
+        updatedCart.totalPrice -= productPrice * productQty;
+
+        fs.writeFile(p, JSON.stringify(updatedCart), err => {
+            console.log(err);
+        });
+    });
+- if (err) : 삭제할 장바구니가 없으니 그냥 무시하는 구문이다.
