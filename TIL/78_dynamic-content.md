@@ -270,7 +270,9 @@ pug처럼 즉시 지원되는 템플릿 엔진이므로 등록 과정은 생략�
 이 위치에 직접 값을 출력하지 않으므로 = 기호는 쓰지 않는다. 일정 코드를 랩, 즉 둘러싸는 방식으로 표현한다. 좋은 점은 Vanilla JavaScript 코드를 쓸 수 있다는 것이다.
 
 - 반복문
-    <% prods.forEach %>
+    <% products.forEach(p => { %>
+        <li><%= p.productData.title %>(<%= p.qty %>)</li>
+    <% }) %>
 
     <% for (let product of prods) { %>
         ...

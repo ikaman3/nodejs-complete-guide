@@ -311,3 +311,52 @@ models/cart.js => static deletePrduct
         });
     });
 - if (err) : 삭제할 장바구니가 없으니 그냥 무시하는 구문이다.
+======================================================================================================================================
+130_장바구니 항목 표시하기
+
+우선 장바구니에 있는 모든 제품을 가져올 준비를 한다. 제품을 읽은 후 호출하는 콜백도 있어야 한다.
+models/cart.js => static getCart(callback)
+    fs.readFile(p, (err, fileContent) => {
+        const cart = JSON.parse(fileContent);
+        if (err) {
+            callback(null);
+        } else {
+            callback(cart);
+        }
+    });
+
+그 다음 cart 모델을 호출하는 shop.js 컨트롤러에 추가한다.
+controllers/shop.js => exports.getCart
+    Cart.getCart(cart => {
+        Product.fetchAll(products => {
+            const cartProducts = [];
+            for (product of products) {
+                const cartProductData = cart.products.find(prod => prod.id === product.id);
+                if (cartProductData) {
+                    cartProducts.push({ productData: product, qty: cartProductData.qty });
+                }
+            }
+            res.render('shop/cart', {
+                path: '/cart',
+                pageTitle: 'Your Cart',
+                products: cartProducts
+            });
+        });
+    });
+- 콜백이 여러번 사용되는데 추후에 많은 비동기 액션을 다루는 다른 방법을 알아본다.
+- cart에는 제품의 데이터뿐만 아니라 수량도 저장되는데 루핑을 생성한 product는 products.js 파일에 저장한 products만 가리킨다. 따라서 이 파일에 수량도 넣어야 한다. product 모델로부터 productData의 원본을 저장하고 cartProductData로부터 qty를 넣는다면 수량과 제품 데이터 모두 cartProducts에 push 하게 된다.
+- cartproducts를 뷰로 반환한다.
+
+이제 view에서 데이터를 표시한다.
+    <main>
+        <% if (products.length > 0) { %>
+            <ul>
+                <% products.forEach(p => { %>
+                    <li><%= p.productData.title %>(<%= p.qty %>)</li>
+                <% }) %>
+            </ul>
+        <% } else { %>
+            <h1>No Products in Cart!</h1>
+        <% } %>
+    </main>
+- 이때 p는 cartProducts 배열에 넘긴 객체이다. 
