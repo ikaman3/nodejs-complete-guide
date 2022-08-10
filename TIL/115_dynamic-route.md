@@ -109,7 +109,7 @@ form 구문이 여러 파일에서 반복되므로 includes에 add-to-cart.ejs �
     
 product가 해당 루프에서만 사용 가능한 로컬 변수이기 때문이다. 따라서 루프에 포함된 include에서는 기본적으로 이 변수를 받지 못한다. 이를 위해 include 함수에 두 번째 인자로 객체를 입력하고 변수를 추가한다. 이때도 역시 오른쪽 product는 이 파일에서 사용 가능한 값이며, 왼쪽 product는 키 값이다.
 ======================================================================================================================================
-123_Cart 추가하기
+123_Cart 추가하기, Model 추가 방법
 
 models 폴더에 cart.js 파일을 생성한다. 장바구니는 이 프로젝트에서 독립된 대상으로 볼 수 있기 때문이다.
 이제 cart를 어떻게 관리할 지 고민해야 한다. 
@@ -174,3 +174,45 @@ controllers/shop.js =>
     };
 - Product.findById(productId, (product) => {...}: product를 가져올 콜백이 있다. 여기에는 products 데이터베이스 또는 products 파일에서 가져온 product가 있다. 이걸 얻으면 제품 정보를 사용해서 cart를 갱신할 수 있다. 
 - Cart.addProduct(productId, product.price): cart 모델은 기본적으로 유틸리티 모델 역할을 한다. 인스턴스를 생성하는게 아닌 정적 함수를 사용한다.
+======================================================================================================================================
+124_Query parameter
+
+edit-product에서 최종적으로 하고 싶은 것은 add-product와 동일한 형식을 렌더링 하는 것이다. 차이점은 이 형식을 내가 편집하고 싶은 제품의 값으로 미리 채우고 싶다는 점이다. 결과적으로 동일한 HTML 코드를 쓴다면 동일한 템플릿을 재사용하는게 효율적이므로 add-product 코드를 옮기고 삭제한다. 그리고 컨트롤러도 수정한다.
+
+controllers/admin.js =>
+    exports.getAddProduct = (req, res, next) => {    
+        res.render('admin/edit-product', { 
+            pageTitle: 'Add Product', 
+            path: '/admin/add-product', 
+        });
+    };
+밑의 경로는 add-product로 남겨놨는데 그 이유는 특정 내비게이션 항목을 강조할 때 사용하기 때문이다.
+
+이제 편집 동작을 어떻게 구현할 지가 문제다. edit 버튼을 클릭하면 edit-product를 호출하는 대신 추가하고 싶은 상품의 ID 또한 덧붙이고자 한다. 그래서 데이터에서 실제 ID를 가져와 url에 반영하고 해당 상품에 대한 데이터로 형식을 미리 채우려 한다. 그리고 save 버튼을 누르면 생성이 아니라 편집한 내용을 저장하고 싶다. 
+이를 위해 두 가지가 필요하다 전달해야 할 ID, 상품을 생성하는 대신 편집하고 싶다는 정보
+
+일단 라우트를 추가한다.
+routes/admin.js => 
+    router.get('/edit-product/:productId', adminController.getEditProduct);
+
+controllers/admin.js =>
+    exports.getEditProduct = (req, res, next) => {    
+        const editMode = req.query.edit;
+        if (!editMode) {
+            return res.redirect('/');
+        }
+        res.render('admin/edit-product', { 
+            pageTitle: 'Edit Product', 
+            path: '/admin/edit-product',
+            editing: editMode
+        }); 
+    };
+- editing: 사용자가 편집을 원한다는 정보를 담을 속성. 이때 editMode는 String 값이다. 즉, true 가 아닌 "true"가 저장되니 주의할 것
+URL에서 쿼리 매개변수를 사용자가 전달하도록 만듦으로써 추가 확인을 하고 싶다고 가정하자. 쿼리 매개변수는 ?를 추가하여 모든 URL에 추가할 수 있으며 edit=true를 비롯한 = 기호로 분할한 키-값 쌍을 넣으면 된다. & 기호로 분할하여 다수의 쿼리 매개변수를 넣을 수 있다. 
+ex) http://localhost:3000/admin/edit-product/123323?edit=true&title=new
+이것을 Optional Data 라고 한다. 도달하게 되는 이 라우트는 ? 표시의 앞 부분까지를 통해 결정된다. 따라서 routes 파일로 전달할 쿼리 매개변수에 대한 정보를 추가할 필요 없다. 라우트 파일의 경로는 영향을 받지 않는다. 그러나 컨트롤러에 있는 쿼리 매개변수는 확인해야 한다. 
+- const editMode = req.query.edit : request 에서 쿼리 객체가 있는지 확인할 수 있다. Express에서 생성 및 관리해준다. URL에 쿼리 매개변수의 목록이 있고 이름이 일치하는 매개변수가 있는 경우에 정해진 값을 얻게 된다. 위의 예제의 경우 "true"를 얻을 것이다. 그리고 값이 없거나 찾을 수 없다면 undefined가 되고 이후 조건문에서 false 처리될것이다. 
+사실 이 작업은 중복되는 느낌이다. 왜냐하면 우리는 이미 상품을 편집하고 싶다는 걸 알기 때문이다. 그러나 쿼리 매개변수로 
+Optional Data를 설정하고 전달하면 사용자를 Tracking 하거나 사용자가 페이지에 적용한 특정 필터를 유지하기 위해 사용된다. (쇼핑몰의 검색 필터를 떠올리면 될 듯하다)
+======================================================================================================================================
+125_제품 편집 페이지를 데이터로 채우기, view에 데이터 채우기
