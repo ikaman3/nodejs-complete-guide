@@ -216,3 +216,13 @@ ex) http://localhost:3000/admin/edit-product/123323?edit=true&title=new
 Optional Data를 설정하고 전달하면 사용자를 Tracking 하거나 사용자가 페이지에 적용한 특정 필터를 유지하기 위해 사용된다. (쇼핑몰의 검색 필터를 떠올리면 될 듯하다)
 ======================================================================================================================================
 125_제품 편집 페이지를 데이터로 채우기, view에 데이터 채우기
+
+controllers/admin.js =>
+    const prodId = req.params.productId;
+- URL에서 제품 ID를 받는다.
+
+views/admin/edit-product.ejs =>
+    <button class="btn" type="submit"><% if (editing) { %>Update Product<% } else { %>Add Product<% } %></button>
+    <form class="product-form" action="/admin/<% if (editing) { %>edit-product<% } else { %>add-product<% } %>" method="POST"></form>
+
+- ejs의 문법을 이용하여 동적으로 뷰에 보여줄 콘텐츠를 변경한다. form 태그의 action 속성처럼 url에 세그먼트를 주입할 수 있는데 결국에는 텍스트로 변환되기 때문이다. 이것은 모든 템플릿 엔진의 공통점이다. 이를 활용하여 editing 변수의 값에 따라 보이는 뷰를 동적으로 제공한다.
