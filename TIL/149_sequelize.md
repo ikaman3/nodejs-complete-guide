@@ -87,4 +87,22 @@ save를 통해 반환된 promise를 return할 수 있고 then 블록을 이전 t
 두 번째 then 블록은 위의 return product.save()에서 발생하는 모든 성공적인 응답을 처리하게 된다.
 - redirect를 함수 바깥에 둔다면 업데이트가 되기 전에 리다이렉트 되버린다. 자바스크립트와 Node.js는 위에서 아래로 코드를 실행할 뿐이다. 하지만 이런 비동기적 코드는 등록을 거치고 시작된다. 그러므로 리다이렉트를 then 블록 안으로 옮겨야 한다. 
 만약 이는 또한 오류가 발생할 경우 리다이렉트되지 않음을 의미한다. 이것은 추후에 에러 핸들링을 배울 것이다.
+
+데이터 삭제하기
+    Product.destroy({...});
+- findAll 메서드처럼 제약 조건을 넣어서 삭제할 레코드를 찾아도 된다. 하지만 이 앱에서는 밑의 방식을 사용했다.
+
+    Product.findByPk(prodId)
+    .then(product => {
+        return product.destroy();
+    })
+    .then(result => {
+        console.log('DESTROYED PRODUCT!!!');
+        res.redirect('/admin/products');
+    })
+    .catch(err => { 
+        console.log(err); 
+    });
+- 삭제할 레코드의 ID를 찾고 그 레코드에 직접 destroy 메서드를 사용하는 방법이다.
+- destroy 메서드 또한 promise를 반환하기 때문에 then 블록을 연결해준다.
 ======================================================================================================================================
