@@ -43,3 +43,20 @@ models/product => 모든 코드를 지우고 Sequelize를 사용한 코드로 �
 - 앱을 시작할 때 이 파일에서 모든 모델이 테이블로 이동했는지 혹은 파일에 속한 테이블을 다 불러왔는지 확인한다. 만약 테이블이 이미 존재한다면 덮어쓰기 하지 않는다.
 - sync() : sync 메서드는 정의한 모든 모델을 둘러본다.(sequelize는 models/product 에서 import 되었기 때문에 알 수 있다) 모든 모델을 인식하고 있기 때문에 대신 테이블 생성이 가능하다. sync 메서드의 역할은 모델을 데이터베이스로 동기화해 해당하는 테이블을 생성하고 관계가 있다면 관계도 생성한다. 
 - 이때 then 을 실행하고 서버를 실행하도록 app.listen은 then 안쪽에 넣는다.
+
+데이터 생성
+controllers/admin => postAddProduct
+    Product.create({
+        title: title,
+        price: price,
+        imageUrl: imageUrl,
+        description: description
+    })
+    .then(result => { 
+        console.log('Created Product');
+    })
+    .catch(err => { console.log(err); });
+- Product.create(): sequelize가 제공하는 메서드 중 하나이다. 모델에 기반한 새 요소를 생성한 후 즉시 데이터베이스에 저장한다. 반면 build는 모델에 기반해 새 자바스크립트 객체를 생성하며 직접 저장해야 한다.
+
+데이터 검색
+findAll({where: ...}): sequelize가 제공하는 메서드 중 하나이다. 모델의 모든 레코드를 읽는다. result를 사용할 수 있는 Promise를 반환한다. 몇 가지 옵션을 객체로 넣을 수 있는데 where 조건을 정의하면 검색하는 데이터의 유형을 제한하게 된다. 아무것도 없으면 제한없이 모두 가져온다.
