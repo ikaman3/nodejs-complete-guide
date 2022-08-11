@@ -360,3 +360,37 @@ controllers/shop.js => exports.getCart
         <% } %>
     </main>
 - 이때 p는 cartProducts 배열에 넘긴 객체이다. 
+======================================================================================================================================
+131_Cart 항목 삭제하기
+
+우선 뷰를 수정한다.
+shop/cart.ejs =>
+    <li>
+        <p><%= p.productData.title %>(<%= p.qty %>)</p>
+        <form action="/cart-delete-item" method="POST">
+            <input type="hidden" value="<%= p.productData.id %>" name="productId">
+            <button class="btn" type="submit">Delete</button>
+        </form>
+    </li>
+
+장바구니에 있는 제품을 삭제하는 컨트롤러를 추가한다
+cart => exports.postCartDeleteProduct
+    const prodId = req.body.productId;
+    Product.findById(prodId, product => {
+        Cart.deleteProduct(prodId, product.price);
+        res.redirect('/cart');
+    });
+- hidden input으로 price를 백엔드로 전달할 수도 있지만 요청을 통해 ID를 전달하려면 Node Express 코드 백엔드에서 모든 데이터를 검색해야 하므로 이게 더 깔끔한 방법이다.
+
+이제 라우트를 연결한다.
+
+======================================================================================================================================
+132_삭제 버그 수정
+
+장바구니에 제품이 아예 없거나 삭제하려는 제품이 없다면 오류가 생긴다.
+
+models/cart.js => static deleteProduct(id, productPrice)
+    if (!product) {
+        return;
+    }
+- 제품이 없다면 return으로 무시한다.
