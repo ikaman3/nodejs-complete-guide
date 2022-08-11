@@ -63,4 +63,28 @@ controllers/admin => postAddProduct
 중요한 점은 findAll 함수는 요소의 개수와 관계없이 디폴트로 배열을 반환한다.
 - findByPk(id): id 값으로 단 하나의 레코드를 반환한다. 상황에 따라 알맞게 사용한다.
 
+데이터 업데이트
+    exports.postEditProduct = (req, res, next) => {
+        const prodId = req.body.productId
+        ...
+        Product.findByPk(prodId)
+        .then(product => {
+            product.title = updatedTitle;
+            ...
+            return product.save();
+        })
+        .then(result => {
+            console.log('UPDATED PRODUCT!!!');
+            res.redirect('/admin/products');
+        })
+        .catch(err => { 
+            console.log(err); 
+        });
+    };
+- return product.save();: 바로 위에서 변경한 것은 자바스크립트 앱의 로컬 변수이므로 데이터베이스에 저장한 것이 아니다. 데이터베이스 업데이트는 sequelize가 제공하는 메서드인 save 를 사용한다. 만약 product가 존재하지 않는다면 새로 생성하고, 존재한다면 덮어쓰거나 업데이트 한다.
+여기서 다시 then, catch를 중첩할 수 있으나 promise를 중첩하면 콜백 지옥처럼 구조가 복잡해진다. 
+save를 통해 반환된 promise를 return할 수 있고 then 블록을 이전 then 블록에 이어준다. 맨 밑의 catch 블록은 첫 번째, 두 번째 promise에 대한 오류를 모두 잡아준다.
+두 번째 then 블록은 위의 return product.save()에서 발생하는 모든 성공적인 응답을 처리하게 된다.
+- redirect를 함수 바깥에 둔다면 업데이트가 되기 전에 리다이렉트 되버린다. 자바스크립트와 Node.js는 위에서 아래로 코드를 실행할 뿐이다. 하지만 이런 비동기적 코드는 등록을 거치고 시작된다. 그러므로 리다이렉트를 then 블록 안으로 옮겨야 한다. 
+만약 이는 또한 오류가 발생할 경우 리다이렉트되지 않음을 의미한다. 이것은 추후에 에러 핸들링을 배울 것이다.
 ======================================================================================================================================
