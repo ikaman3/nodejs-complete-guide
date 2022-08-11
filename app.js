@@ -9,6 +9,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 
 const errorController = require('./controllers/error');
+const sequelize = require('./util/database');
 
 const app = express();
 
@@ -27,6 +28,11 @@ app.use(shopRoutes);
 
 app.use(errorController.get404);
 
-// const server = http.createServer(app);
-// server.listen(3000);
-app.listen(3000); // 위의 코드와 동등한 결과를 간단하게 표현
+sequelize.sync()
+.then(result => {
+    // console.log(result);
+    app.listen(3000);
+})
+.catch(err => {
+    console.log(err);
+});

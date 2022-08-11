@@ -30,3 +30,16 @@ Associations -> User.hasMany(Product)
 
 models/product => 모든 코드를 지우고 Sequelize를 사용한 코드로 변경한다.
     코드는 파일 참조
+    
+테이블 생성
+    app.js =>
+        sequelize.sync()
+    .then(result => {
+        app.listen(3000);
+    })
+    .catch(err => {
+        console.log(err);
+    });
+- 앱을 시작할 때 이 파일에서 모든 모델이 테이블로 이동했는지 혹은 파일에 속한 테이블을 다 불러왔는지 확인한다. 만약 테이블이 이미 존재한다면 덮어쓰기 하지 않는다.
+- sync() : sync 메서드는 정의한 모든 모델을 둘러본다.(sequelize는 models/product 에서 import 되었기 때문에 알 수 있다) 모든 모델을 인식하고 있기 때문에 대신 테이블 생성이 가능하다. sync 메서드의 역할은 모델을 데이터베이스로 동기화해 해당하는 테이블을 생성하고 관계가 있다면 관계도 생성한다. 
+- 이때 then 을 실행하고 서버를 실행하도록 app.listen은 then 안쪽에 넣는다.
