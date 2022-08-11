@@ -26,6 +26,7 @@ nodemon --g
 express --save
 body-parser --save
 ejs --save
+mysql2 --save
 
 <nodemon>
 노드 애플리케이션을 실행하고 파일들의 변경 내역을 확인하여 무언가 변경하는 경우 프로세스를 재시작 한다.
