@@ -171,3 +171,37 @@ return Promise.resolve(user); 의 형태가 되어야 하지만 생략해도 된
 이제 DB에서 검색한 사용자를 저장했다. 
 지금 DB에서 검색한 사용자는 단순히 DB에 있는 값을 포함하는 자바스크립트 객체가 아니라는 점에 주의하라. DB의 값을 포함하는 sequelize 객체이며, sequelize에서 추가한 destroy를 비롯한 기능성 메서드를 포함한다. 
 따라서 이 구문은 sequelize 객체를 저장하게 된 것이다.
+======================================================================================================================================
+164_관계 설정 메서드 사용하기
+
+기존의 코드를 수정하여 새 제품을 생성할 때 관련된 사용자에 대한 추가 정보를 저장할 수 있다.
+constrollers/admin => exports.postAddProduct
+     Product.create({
+        title: title,
+        ...
+        userId: req.user.id
+    }).then(result => { 
+        ...
+    })
+- app.js에서 확보한 userId 필드를 활용한 방법이다. req.user는 sequelize의 user 객체이며 해당 사용자에 대한 DB 데이터와 헬퍼 메서드를 모두 보유한다는 점을 숙지하자.
+
+     req.user.createProduct({
+        title: title,
+        ...
+    }).then(result => { 
+        ...
+    })
+- 위의 코드도 정상적으로 작동하지만 깔끔하게 개선할 수 있다. sequelize의 기능을 활용하여 요청에 저장된 user 객체를 사용하는 것이다. createProduct 메서드는 관계를 설정하면 sequelize가 특별한 메서드로 추가한 것이다.
+모델 이름이 product이므로 createProduct로 생성됐다.
+======================================================================================================================================
+165_sequelize 메서드를 사용하여 관련 제품 가져오기
+
+우선 사용자와 관련있는 컨트롤러를 찾아야 한다.
+exports.getEditProduct =>
+    req.user.getProducts({ where: {id: prodId} }).then(...)
+- 해당 코드로 수정한 후 edit 버튼을 누르면 콘솔에 쿼리가 출력된다.
+- get~s 메서드는 요소를 단 하나만 찾더라도 배열로 돌려받으므로 사용에 주의한다.
+    SELECT `id`, `title`, `price`, `imageUrl`, `description`, `createdAt`, `updatedAt`, `userId` FROM `products` AS `product` WHERE (`product`.`userId` = 1 AND `product`.`id` = '2');
+- 여기서 userId가 1인 제품을 검색하는 조건이 있는데 내가 작성한 조건이 아님을 알 수 있다. user에서 getProducs를 실행했기 때문에 sequelize가 추가한 부분이다.
+
+postEditProduct는 그대로 둔다. 이 지점에 있는 경우 사용자에게 이미 제품이 있다는 것을 의미하기 때문이다.
