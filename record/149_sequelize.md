@@ -205,3 +205,41 @@ exports.getEditProduct =>
 - 여기서 userId가 1인 제품을 검색하는 조건이 있는데 내가 작성한 조건이 아님을 알 수 있다. user에서 getProducs를 실행했기 때문에 sequelize가 추가한 부분이다.
 
 postEditProduct는 그대로 둔다. 이 지점에 있는 경우 사용자에게 이미 제품이 있다는 것을 의미하기 때문이다.
+======================================================================================================================================
+166_일대다, 다대다 관계
+
+장바구니 1개는 사용자 1명에게 속하고 1개의 장바구니는 많은 제품을 각각의 제품에 관련된 수량만큼 확보한다.
+따라서 모델이 1개 이상 필요하다.
+
+models/cart => 모든 코드를 지우고 sequelize로 다시 작성한다.
+
+장바구니는 단일 사용자에게 속하지만 여러 제품이 들어갈 수 있다. 그러나 장바구니 테이블은 여러 사용자들의 장바구니를 포함한다. 
+models/cart-item => cart와 같은 코드에 quantity를 추가한다.
+
+app.js =>
+    User.hasOne(Cart);
+    Cart.belongsTo(User);
+- 사용자 1명은 장바구니 1개를 지니며 1개의 장바구니는 사용자 1명의 소유이다.
+- 밑의 코드는 hasOne 상관관계의 역에 해당하는 옵션 요소이다. 생략해도 된다.
+    Cart.belongsToMany(Product, { through: CartItem });
+    Product.belongsToMany(Cart, { through: CartItem });
+- 장바구니는 다수의 제품에 속한다. 하나의 제품은 다수의 장바구니에 속한다. => 다대다 관계
+- 이 관계는 제품 ID와 장바구니 ID의 조합을 저장하는 중개 테이블을 통해 이들이 연결되는 경우에만 작동한다. 이를 위해 cart-item 모델을 생성했다.
+- through: 이 key는 sequelize에게 연결들의 저장 위치를 알려주어 CartItem 모델에 저장한다. 
+
+controllers/cart => getCart가 동작하지 않을 것이다.
+    req.user.getCart()
+    .then(cart => {
+        return cart.getProducts()
+        .then(products => {
+            res.render('shop/cart', {
+                path: '/cart',
+                pageTitle: 'Your Cart',
+                products: products
+            });
+        })
+        .catch(err => console.log(err));
+    })
+    .catch(err => console.log(err));
+- console.log를 이용해 출력해보면 cart를 속성으로써(req.user.cart) 접근할 수는 없지만 getCart를 통해 다룰 수 있다는 걸 알 수 있다. 
+- return cart.getProducts()를 통해 장바구니 안에 있는 제품을 가져올 수 있다. app.js 파일에서 belongsToMany를 통해 제품과 연결되었다. 이때 sequelize가 CartItem 테이블, 즉 중간 테이블을 살펴본다. 
