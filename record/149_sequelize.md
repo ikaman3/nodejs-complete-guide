@@ -242,4 +242,68 @@ controllers/cart => getCart가 동작하지 않을 것이다.
     })
     .catch(err => console.log(err));
 - console.log를 이용해 출력해보면 cart를 속성으로써(req.user.cart) 접근할 수는 없지만 getCart를 통해 다룰 수 있다는 걸 알 수 있다. 
-- return cart.getProducts()를 통해 장바구니 안에 있는 제품을 가져올 수 있다. app.js 파일에서 belongsToMany를 통해 제품과 연결되었다. 이때 sequelize가 CartItem 테이블, 즉 중간 테이블을 살펴본다. 
+- return cart.getProducts()를 통해 장바구니 안에 있는 제품을 가져올 수 있다. app.js 파일에서 belongsToMany를 통해 제품과 연결되었다. 이때 sequelize가 CartItem 테이블, 즉 중간 테이블을 살펴본다.
+======================================================================================================================================
+168_새 상품 생성
+
+controllers/shop => postCart
+    const prodId = req.body.productId;
+    let fetchedCart;
+    let newQuantity = 1;
+    req.user.getCart()
+    .then(cart => {
+        fetchedCart = cart;
+        return cart.getProducts({ where: { id: prodId } });
+    })
+    .then(products => {
+        let product;
+        if (products.length > 0) {
+            product = products[0];
+        }
+        if (product) {
+            const oldQuantity = product.cartItem.quantity;
+            newQuantity = oldQuantity + 1;
+            return product;
+        }
+        return Product.findByPk(prodId)
+    })
+    .then(product => {
+        return fetchedCart.addProduct(product, {
+            through: { quantity: newQuantity }
+        }); 
+    })
+    .then(() => {
+        res.redirect('/cart');
+    })
+    .catch(err => console.log(err));
+- return cart.getProducts({ where: { id: prodId } }); : where 조건을 추가해 검색하는 제품을 prodId를 가진 제품으로 제한하여 해당 제품만 검색한다. 반환된 배열에는 최대 한 개의 제품만 있을 것이다. 
+- return fetchedCart.addProduct(product, { through: { quantity: newQuantity }});
+: sequelize가 추가한 다대다 관계 메서드 중 하나로 ID를 통해 하나의 제품을 중간 테이블에 추가할 수 있다. 
+cartItem에 추가한 필드를 설정해야 한다. 중간 테이블에 입력하는 항목마다 quantity 데이터도 가져서 두 개 이상의 일치하는 ID가 있을 때 설정할 필드가 하나 더 있음을 sequelize에 알려야 한다. 
+- through: 어떤 모델을 중간 모델, 테이블로 쓸지 알리기 위해 사용했었다. 이번에는 sequelize에 중간 테이블의 값을 설정하기 위해 추가적인 정보를 알린다. 따라서 또 다른 객체에 중간 테이블에 설정할 키 혹은 필드를 입력한다. 여기서는 quantity를 설정했다.
+======================================================================================================================================
+169_장바구니 항목 검색
+
+DB에는 장바구니 제품이 추가되지만 브라우저에서는 에러가 발생한다. 
+views/shop/cart.ejs =>
+    <h1><%= p.title %></h1>
+    <h2>Quantity: <%= p.cartItem.quantity %></h2>
+- cart.ejs에서 로딩하는 제품마다 prductData에 접근하고 있는데 사실 여기에 있는 제품은 DB에만 있다. prductData에 접근할 필요가 없는 것이다.
+- 반면 p.qty는 루핑을 적용한 제품이 아니라 sequelize가 cartItem 키를 만들어 중간 테이블에 대한 정보와 해당 제품에 대한 항목을 저장할 수 있게 한다.
+======================================================================================================================================
+170_장바구니 항목 삭제
+
+    const prodId = req.body.productId;
+    req.user.getCart()
+    .then(cart => {
+        return cart.getProducts({ where: { id: prodId } });
+    })
+    .then(products => {
+        const product = products[0];
+        return product.cartItem.destroy();
+    })
+    .then(result => {
+        res.redirect('/cart');
+    })
+- req.user.getCart(): 사용자의 장바구니에 접근, then 블록에서 해당 사용자의 제품을 찾는다. 
+- return product.cartItem.destroy(): 해당 제품을 products 테이블이 아니라 장바구니와 제품을 연결하는 cartItem의 중간 테이블(in-between table)에서만 제거하기 위해 cartItem 다음 destroy를 입력한다. 그리고 return 하고 then 블록을 추가하여 리다이렉트한다.
