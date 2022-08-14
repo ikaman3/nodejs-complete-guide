@@ -354,4 +354,57 @@ Cart처럼 Order도 사용자와 연관되어 있다. 새로운 주문은 사용
 - return order.addProducts: 기존의 through에 quantity를 지정하는 것과는 다른 방식을 써야한다. 각각의 제품이 모두 다른 수량 정보를 가지고 있으면 이 방식은 사용할 수 없다. products를 전달하여 제품을 추가하지만 각각의 제품이 특수 키 혹은 필드를 가져 Sequelize가 이해하도록 해야한다. 
 - map: 배열에 실행되며 조금 수정된 요소와 함께 새로운 배열을 반환하는 기본 자바스크립트 메서드다. 배열 안에 있는 모든 요소를 입력값으로 가져 조금 수정된 버전을 반환한다.
 - product.orderItem = { quantity: product.cartItem.quantity } : 여기서 orderItem 부분에 정확한 이름을 써야한다. order-item 모델에 정의한 이름을 그대로 사용해야 한다. 
+
+173_cart 비우기, order 가져오기와 출력하기
+
+controllers/shop => postOrder
+    let fetchedCart;
+    req.user.getCart()
+    .then(cart => {
+        ..
+    })
+    .then(products => {
+        ...
+    })
+    .then(result => {
+        return fetchedCart.setProducts(null);
+    })
+    .then(result => {
+        res.redirect('/orders');
+    })
+    .catch(err => console.log(err));
+- 장바구니는 setProducts(null) 메서드로 간단하게 삭제할 수 있다.
+
+주문 출력하기
+getOrders => 
+    req.user.getOrders({include: ['products']})
+    .then(orders => {
+        res.render('shop/orders', {
+            path: '/orders',
+            pageTitle: 'Your Orders',
+            orders: orders
+        });
+    })
+    .catch(err => console.log(err));
+- orders를 콘솔 로그로 출력해보면 주문 데이터가 있는 배열은 존재하지만, orderItem 키는 없다. Sequelize가 자동으로 생성하지 않았다. 만약 제품을 주문에 가져오려면 getOrders에 객체를 전달해 include에 products를 필드 혹은 문자열로 가진 배열을 설정해야 한다. products 이름은 app.js에서 Order를 Many Product로 관계를 설정했기 때문이다. 또 Product 모델의 이름이 product이기 때문에 Sequelize가 이름을 복수형으로 만들어 Eager Loading 이라는 개념을 통해 Sequelize가 orders를 가져올 때 관련된 products까지 가져와서 주문과 주문에 해당되는 제품을 포함한 배열을 제공하도록 한다. app.js 파일에 orders와 products 사이의 관계를 설정했기 때문에 가능하다.
+- 이제 orders는 더 많은 데이터가 포함되었다. 이제 각 주문마다 products 배열이 있다.
+
+    <% if (orders.length <= 0) { %>
+        <h1>Nothing there!</h1>
+    <% } else { %>
+        <ul>
+            <% orders.forEach(order => { %>
+                <li>
+                    <h1># <%= order.id %></h1>
+                    <ul>
+                        <% order.products.forEach(product => { %>
+                            <li>
+                                <%= product.title %> (<%= product.orderItem.quantity %>)
+                            </li>
+                        <% }); %>
+                    </ul>
+                </li>   
+            <% }); %>
+        </ul>
+    <% } %>
 ======================================================================================================================================
