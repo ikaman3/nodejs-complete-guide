@@ -313,3 +313,45 @@ views/shop/cart.ejs =>
 주문 버튼을 누르면 장바구니가 비워지고 제품과 사용자와 연관된 주문을 생성한다.
 주문은 결국 주문을 한 사용자와 주문의 일부인 다수의 제품 사이의 중간 테이블이니깐 이때 제품에는 수량 데이터가 있다. 
 장바구니를 위한 cart-item이 있는 것처럼 order-item이 필요하다.
+
+하지만 관계에 관해서는 cart와 큰 차이가 있다. 
+app.js =>
+    Order.belongsTo(User);
+- 하나의 주문은 다수의 사용자가 아닌 주문한 한 명의 사용자에게 속한다.
+    User.hasMany(Order);
+- 반면 사용자는 이와 같은 주문을 다수 가질 수 있다.  
+- 즉, 일대다 관계이다.
+    Order.belongsToMany(Product, { through: OrderItem });
+- 하나의 주문은 다수의 제품에 속할 수 있다. 중간 테이블로 OrderItem을 지정한다.
+- 반대로 한 제품이 다수의 주문에 속할 수 있는데 생략해도 된다.
+
+172_주문 버튼 추가
+
+주문 버튼을 cart.ejs에 추가한다. 이 버튼을 누르면 장바구니에 있는 모든 제품을 주문으로 이동해야 한다.
+controllers/shop => postOrder
+    req.user.getCart()
+    .then(cart => {
+        return cart.getProducts();
+    })
+    .then(products => {
+        return req.user.createOrder()
+        .then(order => {
+            return order.addProducts(products.map(product => {
+                product.orderItem = { quantity: product.cartItem.quantity };
+                return product;
+            }));
+        })
+        .catch(err => console.log(err));
+    })
+    .then(result => {
+        res.redirect('/orders');
+    })
+    .catch(err => console.log(err));
+- return cart.getProducts(): 여기서 반환된 products의 요소들은 공통적으로 cartItem이라는 속성을 가지고 있어 중간 테이블에 있는 장바구니 제품에 대한 정보를 준다. 
+- 다음 then 블록에서 Order 모델에 접근하기 위해 Order를 import 해야할지도 모른다. 하지만 cart 모델에 직접 접근하지 않고 User 모델을 통해 접근한 것처럼 Order 모델도 불러올 필요가 없다. 
+Cart처럼 Order도 사용자와 연관되어 있다. 새로운 주문은 사용자와 관련되어 생성될 것이다.
+그러므로 app.js에서 createCart를 호출한 것처럼 User 모델에서 createOrder를 호출한다.
+- return order.addProducts: 기존의 through에 quantity를 지정하는 것과는 다른 방식을 써야한다. 각각의 제품이 모두 다른 수량 정보를 가지고 있으면 이 방식은 사용할 수 없다. products를 전달하여 제품을 추가하지만 각각의 제품이 특수 키 혹은 필드를 가져 Sequelize가 이해하도록 해야한다. 
+- map: 배열에 실행되며 조금 수정된 요소와 함께 새로운 배열을 반환하는 기본 자바스크립트 메서드다. 배열 안에 있는 모든 요소를 입력값으로 가져 조금 수정된 버전을 반환한다.
+- product.orderItem = { quantity: product.cartItem.quantity } : 여기서 orderItem 부분에 정확한 이름을 써야한다. order-item 모델에 정의한 이름을 그대로 사용해야 한다. 
+======================================================================================================================================
