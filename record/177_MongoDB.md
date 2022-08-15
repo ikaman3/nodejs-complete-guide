@@ -100,3 +100,137 @@ NoSQL Characteristics
 
 가장 중요한 것은 스키마가 없기 때문에 특정 구조가 필요하지 않으면서 유연성이 향상된다. 
 내장을 통해 관계를 지을 수 있어 데이터 관계는 줄어든다. 참조를 통해 관계를 직접 구축할 수도 있지만 상황에 따라 무엇이 이상적인 방식인지 판단해서 사용한다.
+======================================================================================================================================
+180_mongoDB 드라이버 설치
+
+npm install --save mongodb
+
+util/database => 기존 sequelize 코드는 전부 지운다.
+    const mongodb = require('mongodb');
+    const MongoClient = mongodb.MongoClient;
+    const mongoConnect = (callback) => {
+        MongoClient.connect(
+            '...'
+        )
+        .then(client => {
+            console.log('Connected!');
+            callback(client);
+        })
+        .catch(err => {
+            console.log(err);
+        });
+    }
+    exports.mongoConnect = mongoConnect;
+- 콜백을 호출하고 연결이 이루어지면 then 블록 내부로 결과를 전달하고 이 결과는 클라이언트다. 즉, 데이터베이스에 접근할 수 있게 하는 클라이언트 객체다. 
+- mongoConnect: 이 함수는 MongoDB 내부에 연결하는 위치로 콜백을 전달한다. 그리고 콜백을 실행한 뒤 연결된 클라이언트를 반환하여 상호작용할 수 있도록 해준다.
+- 그러나 이렇게 진행하려면 매 작업마다 MongoDB에 연결해야 하고 작업이 끝나고 연결을 해제하지도 못할 것이다. 따라서 이 방법은 MongoDB에 연결하기에 좋은 방법은 아니다. 앱의 다양한 위치에서 연결과 상호작용을 하려고 하기 때문이다.
+그러니 데이터베이스의 한 연결을 처리하고 클라이언트로 접근을 반환한 뒤 거기서 설정하거나 앱의 접근이 필요한 다양한 위치로 반환시키는 것이 더 나을 것이다.
+
+app.js =>
+    const mongoConnect = require('./util/database').mongoConnect;
+
+    mongoConnect((client) => {
+        console.log(client);
+        app.listen(3000);
+    });
+- 콜백, 즉 연결한 뒤에 실행될 함수를 전달해야 하므로 클라이언트 객체로 접근할 권한을 얻는다.
+======================================================================================================================================
+181_데이터베이스 연결 생성
+
+const mongodb = require('mongodb');
+const MongoClient = mongodb.MongoClient;
+let _db;
+const mongoConnect = (callback) => {
+    MongoClient.connect(
+        '...'
+    )
+    .then(client => {
+        console.log('Connected!');
+        _db = client.db();
+        callback();
+    })
+    .catch(err => {
+        console.log(err);
+        throw err;
+    });
+}
+const getDb = () => {
+    if (_db) {
+        return _db;
+    }
+    throw 'No database found!';
+}
+exports.mongoConnect = mongoConnect;
+exports.getDb = getDb;
+- callback()에서 클라이언트를 반환하는 대신 _db라는 변수를 추가하는데 이 underbar는 이 변수가 파일 내부에서만 사용됨을 알리는 용도이므로 필수는 아니다. 
+- _db = client.db(): 기본값으로는 테스트 데이터베이스에 연결하게 될 텐데 연결 문자열에서 .net/ 다음을 shop 등의 원하는 데이터베이스로 설정한다. SQL과는 다르게 미리 데이터베이스나 테이블 또는 컬렉션을 생성할 필요는 없다. 처음 접근하면 자동으로 생성된다.
+- getDb: 우선 _db가 설정되었는지 확인하고 설정되었다면 반환한다.
+- 이제 두 개의 메서드를 exports하게 되었다. 연결을 위한 것과 데이터베이스로의 연결을 저장하는 용도다. 따라서 _db = client.db() 이 부분은 계속 실행될 것이고 연결된 데이터베이스로의 접근이 존재하는 경우 접근을 반환하는 메서드가 있는 것이다. MongoDB는 뒤에서 연결 풀링이라는 방법으로 이 과정을 관리하는데 데이터베이스와 동시 상호작용을 다수 진행하기에 충분한 연결을 제공한다. 
+
+app.js => 
+    mongoConnect(() => {
+        app.listen(3000);
+    });
+- 콜백으로 더 이상 반환하지 않으므로 연결되어 있다는 것은 알지만 더 이상 할 게 없다.
+
+models/product => class Product
+    const mongodb = require('mongodb');
+    const getDb = require('../util/database').getDb;
+- 이제 getDB를 호출하여 데이터베이스로 접근할 수 있다. getDB는 우리가 연결되어 있는 데이터베이스 인스턴스를 반환한다. 
+
+    constructor(title, price, description, imageUrl) {
+        ...
+    }
+
+    save() {
+        const db = getDb();
+        return db.collection('products')
+        .insertOne(this)
+        .then(result => {
+            console.log(result);
+        })
+        .catch(err => console.log(err));
+    }
+- collection('products').insertOne(this): products라는 컬렉션에 데이터 하나를 입력한다. 컬렉션이 존재하지 않으면 자동으로 생성한다. 여러 개를 입력할 때는 insertMany를 사용하며 자세한 것은 공식 문서를 참조할 것
+insertMany는 입력을 원하는 자바스크립트 객체의 배열을 취한다. 지금은 하나만 입력하니 객체를 인자로 전달한다. 
+e.g. {name: 'A book', price: 12.99}
+- JSON이 아니라 자바스크립트 객체지만 MongoDB가 알아서 변환한다.
+- 그러나 우리가 원하는 것은 product의 정보이므로 this를 입력한다. 
+- insertOne은 이후 promise를 반환하여 then, catch가 존재한다. 
+
+모든 제품 가져오기
+    static fetchAll() {
+        const db = getDb();
+        return db.collection('products')
+        .find()
+        .toArray()
+        .then(products => {
+            console.log(products);
+            return products;
+        })
+        .catch(err => {
+            console.log(err);
+        });
+    }
+- find: MongoDB의 데이터 탐색을 위한 메서드. 필터를 사용하여 원하는 것만 가져올 수 있다.
+- 중요한 것은 find가 promise를 즉시 반환하는 대신 커서라는 것을 반환한다.
+- 커서는 MongoDB가 제공하는 객체로, 단계별로 요소와 문서를 탐색한다. 왜냐하면 이론적으로 컬렉션에서 수백만 개의 문서를 반환할 수도 있지만 그만한 분량을 한꺼번에 전달하고 싶지는 않을 것이다. 대신 find는 MongoDB에게 다음 문서를 순차적으로 요청할 수 있는 일종의 손잡이를 제공하는 것이다. 
+- toArray: MongoDB에게 모든 문서를 받아서 자바스크립트 배열로 바꾼다. 하지만 수십 개에서 백 개 정도의 문서가 있는 경우에 사용한다. 그렇지 않다면 추후 배울 페이지네이션을 사용하는 것이 낫다.
+
+단일 제품 가져오기
+     static findById(prodId) {
+        const db = getDb();
+        return db
+        .collection('products')
+        .find({ _id: new mongodb.ObjectId(prodId) })
+        .next()
+        .then(product => {
+            console.log(product);
+            return product;
+        })
+        .catch(err => console.log(err));
+    }
+- find는 여전히 커서를 제공한다. MongoDB는 한 개의 값만 받는다는 걸 모르기 때문이다. next 함수를 사용하여 find를 통해 반환된 다음 내지는 마지막 문서를 확보한다. 이제 then에는 product 한 개가 존재하고 이를 반환한다.
+- 버튼을 눌러보면 에러가 나오는데 views/shop/index에 문제가 있다. product.id에 접근하는데 MongoDB에서는 _id라야 한다. 이것은 product-list 등 다른 페이지에서도 마찬가지다. 
+- 그래도 null이 출력되는데 MongoDB의 id는 약간 다른 방식으로 저장하기 때문이다. Compass에서 볼 수 있듯이 ID는 사실 ObjectId다. MongoDB는 데이터를 BSON 형식으로 저장하고 이 JSON의 Binary 형식은 단지 작업 속도가 빨라서 사용하는 건 아니고 MongoDB가 내부에 특별한 유형의 데이터를 저장할 수 있기 때문이다. ObjectId는 자바스크립트에는 없고 MongoDB가 사용하는 객체다. ObjectId를 생성하여 안에 포함된 문자열을 전달한다.
+* 이 부분에서 BSONTypeError: Argument passed in must be a string of 12 bytes or a string of 24 hex characters or an integer 에러가 발생하는데 나중에 해결할 것
