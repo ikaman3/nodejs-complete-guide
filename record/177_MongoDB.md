@@ -300,3 +300,13 @@ product 모델의 생성자에서 this._id = new mongodb.ObjectId(id); 로 항�
 이때 ObjectId가 비어있거나 자동 생성된 객체라면 오류가 발생한다. 
 이걸 해결하기 위해 삼항 조건 연산자를 이용하여 id가 있는지 확인하고 없다면 null을 저장한다.
     this._id = id ? new mongodb.ObjectId(id) : null;
+======================================================================================================================================
+194_새로운 사용자 모델
+
+사용자 모델에 username, email 필드와 save, findById 메서드를 작성한다.
+    const ObjectId = mongodb.ObjectId;
+- ObjectId 상수를 생성하고 여기서 액세스해서 액세스를 저장한다. 그러나 호출하지는 않고 객체를 생성하지도 않는다. ObjectId 클래스에 대한 참조를 ObjectId 상수에 저장할 뿐이다. 
+    return db.collection('users').findOne( {_id: new ObjectId(userId)} );
+- findById에서는 findOne 메서드를 사용했다. 하나의 요소를 찾는 것이 확실할 때 사용하는데 find와는 다르게 커서를 반환하지 않고 즉시 그 하나의 요소를 반환한다. 그러므로 next()가 필요없다.
+
+이제 app.js에 User를 import한다.
