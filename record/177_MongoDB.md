@@ -318,3 +318,94 @@ user 객체를 어디에 활용할 것인가. 새로운 제품을 생성할 때 
 
 일단 product 모델에 userId 필드를 추가한다.
 그리고 postAddProduct 컨트롤러에서 prodId는 null로 설정한다. 생성할 당시에는 제품 id가 존재하지 않기 때문이다. 다음으로 userId를 넘기는데 req.user._id를 인수로 추가한다. 이것은 app.js에서 user를 찾아서 해당 user를 request에 저장하는 미들웨어에서 온다. 지금은 하드코딩되어 있지만, 여기서 중요한 점은 user을 하나의 장소에서 추출하여 모든 라우터에서 다시 활용할 수 있다는 것이다.
+
+196_cart 수정
+
+MongoDB를 사용함에 따라 여기에도 변화가 있다. cart 모델의 목표는 무엇인가? 모든 사용자에 대해 cart를 저장하는 것이다. 사용자는 cart를 가지고 그 cart엔 제품이 담긴다. MongoDB에서 이는 내장 문서를 활용할 좋은 기회이다. 사용자와 cart 사이에 엄격한 일대일 관계가 존재하기 때문이다. 따라서 참조로 이를 관리할 필요가 없다.
+그러므로 cart 모델과 cart-item 파일을 삭제하고 user 모델에 cart를 저장한다.
+
+user 모델에 새로운 메서드 addToCart를 추가한다. 매개변수는 cart에 추가하려는 product다. 그리고 addToCart에는 이미 cart에 그 제품이 있는지 알아내는 논리가 들어간다. 만약 있다면 수량을 증가시키고 없다면 처음으로 추가한다. 이를 이해하려면 addToCart가 user 객체에서 호출되고 그 객체는 findById를 통해 데이터베이스에서 불러온 데이터로 생성된다는 사실을 기억하자. findById에선 user를 return한다.
+
+따라서 생성자에서 더 많은 데이터를 수용해야 한다. 데이터베이스에 저장된 데이터를 기반으로 하는 JavaScript 객체에 cart를 저장한다.  
+    this.cart = cart; // {items: []}
+이제 user에 cart가 할당되므로 해당 cart에 특정 product가 존재하는지 알아내면 된다. 이때 cart는 기본적으로 객체다. items가 포함된 객체, 즉 item 배열이 들어있는 객체다. 
+    const cartProductIndex = this.cart.items.findIndex(cp => {
+        return cp.productId.toString() === product._id.toString();
+    });
+만약 이런 경우에는 cartProduct라는 상수를 생성하고 this.cart.items를 사용해 추가하려는 제품과 동일한 ID를 가진 제품의 index를 cart에서 검색한다. 그리고 items 배열의 모든 요소에 대해 자바스크립트가 실행할 함수인 findIndex에 함수를 전달한다. items 배열에서 제품을 찾았다면 true를 반환한다. 
+
+이제 user에 cart를 저장한다. 
+    const db = getDb();
+    return db
+      .collection('users')
+      .updateOne(
+        { _id: new ObjectId(this._id) },
+        { $set: { cart: updatedCart } }
+    );
+- id를 인수로 받아야 한다.
+- $set: 찾고 나서는 어떻게 갱신할지를 정한다. $set을 사용하고 업데이트할 필드와 업데이트 방식에 대한 정보가 모두 들어있는 객체를 입력한다. 여기서는 cart 필드만 명시했으므로 name, email 등의 다른 필드는 영향을 받지 않는다. updatedCart 객체를 새로운 값으로 받아서 기존 값을 덮어씌우게 된다.
+
+197_Add to Cart 기능 추가
+
+app.js => 
+    app.use((req, res, next) => {
+    User.findById('63014a471bc96e3de82aa4c8')
+        .then(user => {
+        req.user = new User(user.name, user.email, user.cart, user._id);
+        next();
+        })
+        .catch(err => console.log(err));
+    });
+- req.user = user; 이렇게 해도 user 정보는 요청에 저장이 된다. 그러나 이렇게 저장하는 user은 해당 속성을 가진 객체일 뿐이며 데이터베이스에 있는 데이터다. 즉, user 모델의 메서드는 포함되어 있지 않다. 우변의 user는 데이터베이스에서 가져왔고 메서드는 데이터베이스에 저장되어 있지 않다. 그러므로 User 클래스의 생성자를 이용하여 user 모델 객체를 생성해야 한다. 
+
+controllers/shop.js => postCart
+    const prodId = req.body.productId;
+    Product.findById(prodId)
+        .then(product => {
+            return req.user.addToCart(product);
+        })
+        .then(result => {
+            console.log(result);
+        });
+- 우선 추가하고자 하는 product을 불러온다. Product 모델을 사용하고 findById로 prodId로 product를 찾는다. then 블록의 product에는 cart에 추가하고자 하는 product가 오게 되고 이것을 addToCart에 인수로 넘긴다.
+- addToCart의 마지막에 updateOne의 결과를 프로미스의 형태로 return하므로 다시 shop.js로 돌아와 두 번째 then 블록에 받아준다.  
+
+실행하고 데이터베이스의 users을 살펴보면 제품 정보가 들어있는 객체가 items인 내장 문서 cart를 확인할 수 있다. 여기서 중요한 점은 별개의 컬렉션으로도 저장되는 온전한 product 문서를 user에서 내장 문서의 일부로써 저장했다는 것이다. 즉, 중복된 데이터이다. 같은 product가 users의 내장 문서와 products에 각각 존재한다. 이 상태로 product의 title, price 등을 변경하면 cart에 반영되지 않는다.
+
+user.js => addToCart
+    items: [{ productId: new ObjectId(product._id), quantity: 1 }]
+- product를 저장하는 부분에서 모든 데이터를 저장하지 않고 제품 ID와 수량만 저장한다. 즉, 제품에 대한 참조와 수량만 저장한 것이다. 이제 제품 정보를 제공하려면 ID를 사용해 수동으로 불러와야 한다. 대신 제품 정보를 수정하더라도 product 컬렉션이나 users에서 추가로 변경할 필요가 없다.  
+
+198_cart에 여러 개의 제품 저장하기
+
+위의 코드는 항상 기존의 장바구니를 덮어쓰기 한다. 다양한 제품을 저장하고 이미 존재하는 경우 수량만 증가하도록 수정한다.
+user.js => addToCart
+    addToCart(product) {
+        if (!this.cart.items) {
+            this.cart.items = [];
+        }
+        const cartProductIndex = this.cart.items.findIndex(cp => {
+            return cp.productId.toString() === product._id.toString();
+        });
+        let newQuantity = 1;
+        const updatedCartItems = [...this.cart.items];
+
+        if (cartProductIndex >= 0) {
+            newQuantity = this.cart.items[cartProductIndex].quantity + 1;
+            updatedCartItems[cartProductIndex].quantity = newQuantity;
+        } else {
+            updatedCartItems.push({
+                productId: new ObjectId(product._id),
+                quantity: newQuantity
+            });
+        }
+        const updatedCart = {
+            items: updatedCartItems
+        };
+        const db = getDb();
+        return db
+        ...
+    }
+- if (...): 해당 제품이 이미 존재할 경우 기존 수량에 + 1 한다. 
+- updatedCartItems: cart.items에 접근하고 스프레드 연산자를 통해 기존 요소들을 모두 복사하는 새로운 배열을 생성한다. 이렇게 장바구니에 있는 모든 품목이 들어간 새 배열을 받아 저장한다. 이 배열은 자바스크립트의 참조와 원시 타입으로 인해 기존 배열을 건드리지 않고 편집할 수 있다.
+- return cp.productId.toString() === product._id.toString() : 우변의 인수로 가져오는 product는 데이터베이스에서 방금 검색한 제품이다. 즉, _id는 자바스크립트에서 문자열로 간주되지만 사실 문자열 유형이 아니다. 그런데 ===를 사용했기 때문에 값 뿐만아니라 타입까지 일치해야 한다. 이런 상황에서 두 가지 해결책이 있다. 하나는 ==를 쓰거나 toString을 양쪽에 사용하는 것이다.
