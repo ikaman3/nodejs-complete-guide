@@ -1,6 +1,7 @@
-const e = require('express');
 const mongodb = require('mongodb');
 const getDb = require('../util/database').getDb;
+
+const ObjectId = mongodb.ObjectId;
 
 class Product {
     constructor(title, price, description, imageUrl, id) {
@@ -8,7 +9,7 @@ class Product {
         this.price = price;
         this.description = description;
         this.imageUrl = imageUrl;
-        this._id = id ? new mongodb.ObjectId(id) : null;
+        this._id = id ? new ObjectId(id) : null;
     }
 
     save() {
@@ -47,7 +48,7 @@ class Product {
         const db = getDb();
         return db
         .collection('products')
-        .find({ _id: new mongodb.ObjectId(prodId) })
+        .find({ _id: new ObjectId(prodId) })
         .next()
         .then(product => {
             console.log(product);
@@ -59,7 +60,7 @@ class Product {
     static deleteById(prodId) {
         const db = getDb();
         return db.collection('products')
-        .deleteOne({ _id: new mongodb.ObjectId(prodId) })
+        .deleteOne({ _id: new ObjectId(prodId) })
         .then(result => {
             console.log('Deleted');
         })
