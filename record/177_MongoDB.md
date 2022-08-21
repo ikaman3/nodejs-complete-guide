@@ -409,3 +409,49 @@ user.js => addToCart
 - if (...): 해당 제품이 이미 존재할 경우 기존 수량에 + 1 한다. 
 - updatedCartItems: cart.items에 접근하고 스프레드 연산자를 통해 기존 요소들을 모두 복사하는 새로운 배열을 생성한다. 이렇게 장바구니에 있는 모든 품목이 들어간 새 배열을 받아 저장한다. 이 배열은 자바스크립트의 참조와 원시 타입으로 인해 기존 배열을 건드리지 않고 편집할 수 있다.
 - return cp.productId.toString() === product._id.toString() : 우변의 인수로 가져오는 product는 데이터베이스에서 방금 검색한 제품이다. 즉, _id는 자바스크립트에서 문자열로 간주되지만 사실 문자열 유형이 아니다. 그런데 ===를 사용했기 때문에 값 뿐만아니라 타입까지 일치해야 한다. 이런 상황에서 두 가지 해결책이 있다. 하나는 ==를 쓰거나 toString을 양쪽에 사용하는 것이다.
+
+199_cart 항목 표시하기
+
+여기서의 개념은 장바구니 품목을 반환하여 컨트롤러에 장바구니 품목을 확보하고 이들을 출력하는 것이다. 최종적으로 제품만 필요하다. 따라서 각 제품과 수량이 기재된 목록을 확보하고자 한다. 
+getCart 메서드는 이 cart 속성을 이미 갖고 있는 user.js에 존재한다. 이게 MongoDB가 상관관계를 생각하는 방식이다. cart 컬렉션은 존재하지 않으므로 해당 컬렉션에 접근할 필요가 없다.
+이제 getCart에서 완전히 채운 cart를 반환하면 된다. 
+user.js => getCart
+        const db = getDb();
+        const productIds = this.cart.items.map(i => {
+            return i.productId;
+        });
+        return db.collection('products')
+        .find({ _id: { $in: productIds } })
+        .toArray()
+        .then(products => {
+            return products.map(p => {
+                return {
+                    ...p, 
+                    quantity: this.cart.items.find(i => {
+                    return i.productId.toString() === p._id.toString();
+                    }).quantity
+                };
+            });
+        });
+- find({ _id: { $in: productIds } }): MongoDB가 지원하는 특별한 쿼리 구문을 이용하여 모든 요소를 찾는다. find 내부에서 _id가 동일한 모든 제품을 찾겠다고 할 수 있는데 이때 단일 ID를 찾는 게 아니므로 ID를 전달하지는 않는다. 대신 객체를 전달하여 MongoDB 연산자를 사용한다. 
+$in 연산자는 ID 배열을 가져가고 해당 배열에 있는 모든 ID가 수락되며 이 배열에서 언급된 ID 중 하나를 포함하는 모든 제품에 대한 참조를 포함하는 커서를 가져온다.
+- const productIds = this.cart.items.map(...): items는 객체들의 배열이다. 즉, 제품 ID와 수량을 가지는 객체들이 들어있다. 지금은 제품의 ID만 필요하므로 자바스크립트 기본 함수인 map을 사용한다. 맵핑하여 포함된 모든 품목을 변환하고 productId를 반환한다. 여기에서는 모든 품목이 자바스크립트 객체인 items 배열을 문자열 내지는 제품 ID의 배열로 맵핑하고 있다. 이후 새로운 productIds 상수에 저장된다.
+- then 메서드는 장바구니에 있던 모든 제품 데이터를 포함한다. 그리고 수량에 관한 정보를 모든 제품에 다시 추가해야 한다. 이 then 블록에 모든 제품이 약간씩 변환될 제품 배열의 맵핑된 버전을 다시 반환한다. 즉, 검색한 모든 데이터는 유지하되 새로운 quantity 속성을 추가하며 이 수량 속성은 이미 알고 있거나 제품에 포함된 데이터로 채워야 한다.
+- 이 코드처럼 getCart는 어느 제품 컬렉션에 저장된 모든 데이터가 포함된 제품들을 반환할 텐데 사용자와 장바구니에는 참조만을 저장하기 때문이다. 참조가 없는 두 컬렉션 사이에 연결이 없는 경우 MongoDB에서 이처럼 직접 통합해야 한다. 
+
+이제 getCart는 모든 정보를 포함한 장바구니를 반환한다. 
+controllers/shop.js => getCart
+    req.user
+    .getCart()
+    .then(products => {
+        res.render('shop/cart', {
+            path: '/cart',
+            pageTitle: 'Your Cart',
+            products: products
+        });
+    }) 
+    .catch(err => console.log(err));
+
+views/shop/cart.ejs =>
+    p.cartItem.quantity -> p.quantity
+    p.id -> p._id
