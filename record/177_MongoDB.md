@@ -522,3 +522,19 @@ models/user => addOrder
 - 이제 items는 제품 정보와 수량이 있는 products 배열로 설정한다. 이때 제품 정보가 바뀌는 경우를 신경 쓰지 않는데 주문에 스냅샷이 필요하기 때문이다. 제품 가격이 바뀌어도 지난 주문에는 영향이 없는 것처럼 말이다.
 - 그리고 삽입 관련 코드도 then 블록 안으로 넣는다. 그러면 순서대로 getCart로 제품 배열을 받고 해당 데이터로 주문을 생성한다. 그리고 orders 컬렉션에 order를 삽입한다. 그 다음 결과를 반환하고 then(result)에서 삽입에 성공하면 기존 카트를 비운다.
 - this.getCart에서도 return하여 addOrder의 결과를 반환한다.
+
+204_주문 표시하기
+
+models/user => getOrders
+    const db = getDb();
+    return db
+        .collection('orders')
+        .find({ 'user._id': new ObjectId(this._id) })
+        .toArray();
+- 어떻게 사용자의 모든 주문을 찾을 수 있을까. 각 주문에 User 객체가 있고 User 객체에는 사용자 ID가 있다. 이 사용자 ID를 현재 사용자 ID와 비교하기 위해 필터를 사용한다. MongoDB에서는 경로를 정의하여 중첩된 속성을 확인할 수 있다. 경로는 반드시 따옴표 안에 써야 한다. user._id를 정의하면 내장 문서를 가지고 있는 user 속성에서  _id를 찾는다.
+- 그 다음 new ObjectId(this._id)와 비교하면 사용자에 대한 모든 주문 정보를 줄 텐데 하나 이상일 것이기 떄문에 toArray 단축키를 쓰고 사용자의 주문 배열을 반환한다.
+
+views/shop/order.ejs =>
+    모든 order에 _id를 써야함을 기억하라 
+    products 대신 items를 쓰니까 변경한다.
+    orderItem도 사용하지 않는다.
