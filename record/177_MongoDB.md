@@ -455,3 +455,19 @@ controllers/shop.js => getCart
 views/shop/cart.ejs =>
     p.cartItem.quantity -> p.quantity
     p.id -> p._id
+
+201_장바구니 항목 삭제
+
+models/user => deleteItemFromCart
+    const updatedCartItems = this.cart.items.filter(item => {
+        return item.productId.toString() !== productId.toString();
+    });
+    const db = getDb();
+    return db
+    .collection('users')
+    .updateOne(
+        { _id: new ObjectId(this._id) },
+        { $set: { cart: { items: updatedCartItems } } }
+    );
+- filter: Vanilla 자바스크립트에서 제공하는 메서드다. 배열의 요소를 필터링하는 방식에 대한 기준을 정의하게 해준다. 필터는 모든 요소에 실행되고 새로운 배열에 요소를 계속 두고 싶다면 true를 반환하고 제거하길 원한다면 false를 반환하도록 정의한다.
+- 이제 DB에 저장된 items를 updatedCartItems로 교체하면 끝이다. 
