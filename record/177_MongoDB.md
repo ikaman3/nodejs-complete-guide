@@ -491,3 +491,34 @@ models/user => addOrder
         );
     });
 - orders 컬렉션을 만들고 insertOne으로 this.cart를 넣는다. 이때 this.cart는 사용자의 장바구니를 의미한다. 주문에 this.cart를 넣고 성공하면 장바구니를 빈 배열로 비워준다. 그리고 데이터베이스에서도 지워야 한다. 중요한 것은 장바구니를 비우기 전에 orders 컬렉션에 삽입하는 것이다. 
+
+203_관계형 주문 데이터 추가
+
+현재 주문은 장바구니의 내용물이 있지만 주문한 사용자의 정보는 없으므로 수정이 필요하다.
+models/user => addOrder
+    const db = getDb();
+    return this.getCart()
+        .then(products => {
+            const order = {
+                items: products,
+                user: {
+                    _id: new ObjectId(this._id),
+                    name: this.name
+                }
+            };
+            return db.collection('orders').insertOne(order)
+        })
+        .then(result => {
+            this.cart = { items: [] };  
+            return db
+            .collection('users')
+            .updateOne(
+                { _id: new ObjectId(this._id) }, 
+                { $set: { cart: { items: [] } } }
+            );
+        });
+- 저장하고자 하는 객체로 order를 생성한다. 여기에 사용자의 정보가 들어가는데 데이터를 중복시켜서 order, users 컬렉션 둘 다에 있도록 하는 것이다. 여기 있는 사용자 데이터가 나중에 바뀔 수도 있기 때문에 크게 신경 쓰지 않아도 된다. 다시 말해 이미 처리된 주문과 진행 중인 주문이 있을 텐데 이미 처리된 주문의 경우 사용자 이메일이 바뀐다 해도 아무 영향이 없기 때문이다. 만약 신경쓰인다면 email은 제거해도 된다. 따라서 사용자명이 바뀐다고 해도 _id에서는 바꾸지 않고 users 컬렉션에서만 바꾸는 것이다.
+- 가격처럼 추가적인 정보를 저장하면 유용하게 활용할 수 있으므로 제품 정보가 필요하다. 이미 getCart 메서드가 제품 정보를 가져오는 방법이므로 this.getCart를 호출하여 사용한다. 그 이후에 const order를 then 블록 안에 넣어 코드가 너무 빨리 실행되지 않고 제품 데이터를 모두 받은 다음 실행되도록 한다.
+- 이제 items는 제품 정보와 수량이 있는 products 배열로 설정한다. 이때 제품 정보가 바뀌는 경우를 신경 쓰지 않는데 주문에 스냅샷이 필요하기 때문이다. 제품 가격이 바뀌어도 지난 주문에는 영향이 없는 것처럼 말이다.
+- 그리고 삽입 관련 코드도 then 블록 안으로 넣는다. 그러면 순서대로 getCart로 제품 배열을 받고 해당 데이터로 주문을 생성한다. 그리고 orders 컬렉션에 order를 삽입한다. 그 다음 결과를 반환하고 then(result)에서 삽입에 성공하면 기존 카트를 비운다.
+- this.getCart에서도 return하여 addOrder의 결과를 반환한다.
