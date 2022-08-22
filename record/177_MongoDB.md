@@ -471,3 +471,23 @@ models/user => deleteItemFromCart
     );
 - filter: Vanilla 자바스크립트에서 제공하는 메서드다. 배열의 요소를 필터링하는 방식에 대한 기준을 정의하게 해준다. 필터는 모든 요소에 실행되고 새로운 배열에 요소를 계속 두고 싶다면 true를 반환하고 제거하길 원한다면 false를 반환하도록 정의한다.
 - 이제 DB에 저장된 items를 updatedCartItems로 교체하면 끝이다. 
+
+202_주문 생성
+
+cart는 내장 문서이며 cart item은 참조와 추가적인 메타데이터 조합이었는데 주문의 경우는 다르다.
+addOrder 메서드에 아무런 인수도 넣지 않는데 장바구니가 이미 사용자에 등록되었기 때문이다. 따라서 주문을 사용자에 추가하거나 사용자를 주문에 추가해야 한다. 수천 개의 주문이 있을 때는 주문을 새 컬렉션에 저장하고 User 객체에 넣지 않는데 이 같은 객체는 금방 커지기 때문이다. 장바구니는 그렇게 커지지 않지만 주문 내역은 보통 매우 길어지므로 새로운 컬렉션이 필요하다.
+models/user => addOrder
+    const db = getDb();
+    return db
+    .collection('orders')
+    .insertOne(this.cart)
+    .then(result => {
+        this.cart = { items: [] };
+        return db
+        .collection('users')
+        .updateOne(
+            { _id: new ObjectId(this._id) }, 
+            { $set: { cart: { items: [] } } }
+        );
+    });
+- orders 컬렉션을 만들고 insertOne으로 this.cart를 넣는다. 이때 this.cart는 사용자의 장바구니를 의미한다. 주문에 this.cart를 넣고 성공하면 장바구니를 빈 배열로 비워준다. 그리고 데이터베이스에서도 지워야 한다. 중요한 것은 장바구니를 비우기 전에 orders 컬렉션에 삽입하는 것이다. 
