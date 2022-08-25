@@ -10,7 +10,7 @@ mysql
 gh
 
 ========================================================================
-자세한 설명
+사용법 및 설명
 
 <npm>
 npm init : npm 초기화하여 package.json 생성
@@ -21,23 +21,12 @@ package.json의 scripts에 추가
 // 개별 설정된 이름이 있는 일반 스크립트
 "start-server": "node app.js" // npm run start-server : 기본으로 존재하지 않는 스크립트는 run 키워드 이용
 
-설치한 npm modules list
-nodemon --g
-express --save
-body-parser --save
-ejs --save
-mysql2 --save
-
 <nodemon>
 노드 애플리케이션을 실행하고 파일들의 변경 내역을 확인하여 무언가 변경하는 경우 프로세스를 재시작 한다.
 "start": "node app.js", -> "start": "nodemon app.js",
 이때 터미널에서 "nodemon app.js" 명령어를 사용하려면 nodemon을 전역으로 설치해야 한다.
 로컬로 실행하려면 "npm start" 사용
 추후 디버깅에서 사용할 것이므로 전역으로 설치할 것
-
-<express>
-
-<body-parser>
 
 <Debug>
 "app.js" 파일 선택 후 메뉴바-Run-"Start Debugging" or F5 
