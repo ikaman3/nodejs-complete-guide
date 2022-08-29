@@ -177,3 +177,143 @@ CSRF 공격에서는 사용자를 속여서 가짜 사이트로 가도록 한다
 ===========================================================================================
 261_CSRF 토큰 사용하기
 
+npm install --save csurf
+- csurf는 CSRF 토큰을 생성하게 해주는 Express.js용 패키지다. 
+- 기본적으로 토큰, 즉 문자열 값으로 백엔드에서 실행되어 뭔가를 주문하는 등의 보호가 필요한 민감한 작업을 수행하고 사용자의 상태를 변경하는 모든 요청에 대해서 이를 폼이나 페이지에 내장한다. 이러한 토큰을 뷰와 서버에 포함하면 이 패키지가 들어오는 요청이 유효한 토큰을 가지고 있는지 검사한다.
+- 가짜 사이트가 백엔드로 요청을 보내서 이론적으로 세션을 사용할 수 있지만 이러한 요청에는 토큰이 빠져있고 토큰은 무작위 해쉬 값이므로 토큰을 추측할 수도 없다. 그리고 서버에서 실행되는 패키지가 토큰이 유효한지 판별한다. 따라서 추측이 불가능하며 페이지를 렌더링할 때마다 새로운 토큰이 생성되므로 가로챌 수도 없다. 
+
+app.js =>
+	const csrf = require('csurf');
+- csurf 패키지를 import한 csrf 상수 생성
+	...
+	const csrfProtection = csrf();
+- 초기화를 위한 새로운 상수를 생성. csrf를 함수로 실행해서 csrfProduction을 초기화한다.
+- 여기에 무언가를 설정할 객체를 입력할 수 있다. 예를 들어 토큰 할당 즉, 해시화하는데 사용되는 비밀 같은 것인데 이를 기본값인 세션 대신에 쿠키에 저장하거나 하는 식이다. 이 앱에서는 기 ㅇ본값으로 사용하며 다른 값들도 건드릴 필요는 없다.
+	app.use(csrfProtection);
+- 이제 csrfProtection 미들웨어를 얻었으니 미들웨어로 사용하면 된다. 주의할 점은 반드시 세션을 초기화하는 코드 다음에 사용해야 한다. csurf 패키지가 이 세션을 사용하므로 필수이다.
+
+미들웨어 등록이 끝났으니 뷰에 추가해야 한다. 현재 로그인이나 로그아웃을 하려하면 토큰이 없다고 오류가 난다. 로그인이나 로그아웃 등의 POST 요청을하면 실패한다. 이 패키지는 일반적으로 POST 요청을 통해-데이터를 변경하는 get 이외의 모든 요청에 대해-뷰에 csrf 토큰이 있는지 확인한다. 요청 본문에 그런 토큰이 있는지 검증하려면 먼저 뷰에서 토큰에 접근해야한다. 이를 위해 뷰에 데이터를 입력한다.
+
+우선 시작페이지에 왔다고 가정하자. 컨트롤러 액션에서는 getIndex 액션에 해당한다. 여기서 render 메서드에 새로운 정보를 입력한다.
+controllers/shop => getIndex
+	csrfToken: req.csrfToken()
+- 우측의 csrfToken 메서드는 csrf 미들웨어가 제공한다. 이러면 좌측의 csrfToken에 토큰이 저장되고 뷰에서 사용할 수 있다. 
+
+이제 뷰에서 hidden input을 추가한다. 
+views/includes/navigation =>
+	<input type="hidden" name="_csrf" value="<%= csrfToken %>">
+- value가 csrf 토큰이다. csrfToken라는 이름은 위의 코드에서 뷰를 렌더링할 때 토큰을 저장했던 필드이다.
+- csrf 패키지가 숨겨진 입력값의 토큰을 인식하기 위해 name이 필요하다. 반드시 _csrf 로 설정해야 한다.
+
+이제 뷰에서 토큰을 추출하고 처리할 수 있다. 모든 라우트에 이게 필요하므로 모든 렌더링 함수에 추가할 수 있지만 역시나 번거롭다. 그러므로 데이터를 가져오거나 렌더링 할 모든 페이지에 토큰이나 isAuthenticated 필드를 추가하는 방법을 알아야 한다.
+
+===========================================================================================
+262_CSRF 방어 추가하기
+
+토큰과 인증 상태를 렌더링할 모든 페이지에 추가하려 한다. 모든 페이지에 추가하려면 렌더링 함수에서 지우고 express.js로 간다. 이는 csrf와 전혀 관련이 없다. express.js에 이 데이터를 모든 렌더링할 뷰에 포함하라고 명령하면 된다.
+
+app.js에서 하면 되는데 user을 추출하는 이 미들웨어와 전체 라우트 사이에 미들웨어를 하나 더 추가한다. 세 개의 인수를 가진 함수를 포함한 일반적인 미들웨어다. 
+
+res.locals
+- response에서 locals라는 특수한 필드를 액세스할 수 있는데 이는 뷰에 입력할 로컬 변수를 설정할 수 있도록 한다. 렌더링될 뷰에만 존재하게 되므로 로컬이라고 불린다.
+
+app.js =>
+	app.use((req, res, next) => {
+		res.locals.isAuthenticated = req.session.isLoggedIn;
+		res.locals.csrfToken = req.csrfToken();
+		next();
+	});
+- 방금 모든 렌더링 함수에서 삭제한 isAuthenticated 속성을 추가해서 isLoggedIn 세션을 요청한다. 물론 req.csrfToken 함수에서 가져오는 csrfToken 변수도 추가한다. 
+- 이렇게 하면 실행되는 모든 요청에 대해 렌더링되는 뷰에서 이 두 필드가 설정된다. 그 다음은 next를 호출해서 계속 진행되도록 한다. 
+
+마지막으로 뷰에 입력한 토큰을 사용하도록 내비게이션에 추가한 hidden input 코드를 모든 form에 추가한다.
+
+CSRF는 출시할 앱의 필수 요소이다. 없다면 큰 보안 취약점이 생기므로 반드시 추가하여 세션을 가로채지 못하게 해야한다.
+===========================================================================================
+264_사용자에게 피드백 제공 & connect-flash 
+
+지금은 로그인할 때 잘못된 정보로 로그인을 시도해서 email이나 password를 찾지 못하거나, email이 이미 존재하는 사용자를 생성하려고 하는 경우 리다이렉트만 하고 있다. 여기서는 유효성 검사보다는 일반적으로 사용자에게 피드백 제공을 다루고 있다.
+
+지금처럼 render 메서드를 통해 뷰와 페이지에 포함된 데이터를 렌더링하는 것은 간단하다. 데이터를 뷰에 넣는 것은 어려운 일이 아니다. 그러나 리다이렉트할 때 렌더링된 뷰에 데이터를 입력하는 것은 간단하지 않다.
+
+리다이렉트는 엄밀하게 말하여 새로운 요청이 시작된다. res.redirect('/login') 이라고 작성했다면 /login으로 가는 새로운 요청인 것이다. 사용자가 잘못된 email 같은 정보를 입력했으므로 이 새로운 요청에서 무엇인지 알 수가 없다. 이 새로운 요청을 생성했을 때 메뉴에서 login 버튼을 누른 것과 같은 방식으로 처리한다. 따라서 오류 알림을 표시해야 하는지 알 방법이 없다. 그러므로 Login 페이지를 표시하는 getLogin의 render 메서드에 오류 알림이 포함돼야 하는지 알 수가 없다. 
+
+이 문제를 해결하기 위해 리다이렉트하기 전에 데이터를 저장해서 리다이렉트로 생성된 새로운 요청에서 이를 사용하고자 한다. 요청 간에 데이터를 저장하려면 세션이 필요하다. 그러나 세션에 오류 알림을 영구적으로 저장하고 싶지 않다. 오류 알림에 뭔가를 추가해서 세션에 잠깐 표시되도록 하고 뭔가를 한 다음에는 세션에서 제거하여 이어지는 요청에서 오류 알림이 포함되지 않도록 해야한다. 이를 위해 새로운 패키지가 필요하다.
+
+npm install --save connect-flash 
+
+먼저 app.js 파일에서 초기화한다.
+app.js =>
+	const flash = require('connect-flash');
+- 패키지 import 한다.
+	...
+	app.use(flash());
+- 그 다음 세션을 초기화하는 미들웨어 다음에 flash를 등록 또는 초기화한다.
+- 이제 flash 미들웨어를 애플리케이션이 request 객체에 사용 가능하다.
+
+이제 auth 컨트롤러로 간다. 로그인할 때 해당 이메일을 찾지 못하는 문제가 발생했다고 하자. 세션에 오류 알림을 표시하려 한다. request로 할 수 있고 flash 메서드를 사용한다. 
+controllers/auth => postLogin
+	if (!user) {
+        req.flash('error', 'Invalid email or password.');
+        return res.redirect('/login');
+	}
+- 이 플래시 알림은 이제 알림이 저장될 key를 부여받는다. 이름은 'error'이다.
+- 그리고 표시할 내용을 입력한다. 이 경우에는 'Invalid email or password.'이다. 
+
+이렇게 하면 사용될 때까지 세션이 존재한다. Login 페이지를 렌더링할 때 사용하려 한다. 
+contorllers/auth => getLogin
+	res.render('auth/login', {
+		...
+		errorMessage: req.flash('error')
+	});
+- 여기에 errorMessage를 넣고 싶다면 이 변수는 req.flash를 사용해서 가져온다.
+- 가져오려는 알림의 key를 액세스한다. 이 경우에는 'error'이다. error에 저장한 내용을 불러와서 errorMessage에 저장한다. 그리고 그 후에 이 정보는 세션에서 제거한다. 이제 세션에 error가 플래시된 경우에만 errorMessage가 설정되고 값을 가진다.
+
+이제 login 뷰로 넘어가서 오류 알림을 보여주면 된다.
+views/auth/login =>
+	<% if (errorMessage) { %>
+		<div class="user-message user-message--error"><%= errorMessage %></div>
+	<% } %>
+
+265_선택사항: 오류 메시지 스타일링
+
+css file 참고
+
+266_플래시 메시지 완성
+
+알림이 플래시 되지 않아도 errorMessage가 undefined로 설정되지 않는 문제가 있다. auth 컨트롤러의 getLogin 액션에서 req.flash('error')를 출력해보면 [] 빈 배열이 출력된다. 만약 잘못된 email이나 password가 입력되면 [ 'error message...' ] 이처럼 메시지로 된 배열이 출력된다.
+
+controllers/auth => getLogin
+	let message = req.flash('error');
+	if (message.length > 0) {
+		message = message[0];
+	} else {
+		message = null;
+	}
+	res.render('auth/login', {
+		...
+		errorMessage: message
+	});
+- 먼저 message에 오류 메시지를 추출한다. 만약 메시지의 길이가 0보다 길다면 message가 있음을 의미한다.
+===========================================================================================
+267_플래시 메시지 추가
+
+그럼 다른 곳에도 오류 메시지를 추가해보자. 위에서 존재하지 않는 이메일을 사용했을 때 플래시 알림을 추가했다. 비밀번호가 일치하지 않아서 Login으로 리다이렉트되는 경우에도 같은 메시지를 추가한다.
+
+가입할 때 이메일 주소가 이미 존재하는지 확인하는 과정이 있으므로 회원가입에도 활용할 수 있다. postSignup 액션의 리다이렉션 위에 코드를 추가한다.
+	if (userDoc) {
+		req.flash('error', 'E-mail exists already, please pick a different one.');
+		return res.redirect('/signup');
+	}
+그리고 login 뷰에서 한 것처럼 signup 뷰에서 알림을 출력하는 코드를 작성한다. 물론 이게 작동하려면 signup 페이지를 렌더링할 때 추출해야 한다. getLogin의 렌더링 코드를 복사하여 getSignup에 활용한다.
+contollers/auth => getSignup
+	let message = req.flash('error');
+	if (message.length > 0) {
+		message = message[0];
+	} else {
+		message = null;
+	}
+	res.render('auth/signup', {
+		...
+		errorMessage: message
+	});
