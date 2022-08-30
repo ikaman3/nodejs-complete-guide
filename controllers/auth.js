@@ -1,14 +1,20 @@
 const bcrypt = require('bcryptjs');
-// const nodemailer = require('nodemailer');
-// const sendgridTransport = require('nodemailer-sendgrid-transport');
+const nodemailer = require('nodemailer');
+const senderInfo = require('../config/sender-info.json');
 
 const User = require('../models/user');
 
-// const transporter = nodemailer.createTransport(sendgridTransport({
-//   auth: {
-//     api_key: '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'
-//   }
-// }));
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  prot: 587,
+  host: 'smtp.gmlail.com',
+  secure: false,
+  requireTLS: true,
+  auth: {
+    user: senderInfo.user,
+    pass: senderInfo.password
+  }
+});
 
 exports.getLogin = (req, res, next) => {
   let message = req.flash('error');
@@ -90,16 +96,16 @@ exports.postSignup = (req, res, next) => {
         })
         .then(result => {
           res.redirect('/login');
-          // return transporter.sendMail({
-          //   to: email,
-          //   from: 'shop@node-complete.com',
-          //   subject: 'Signup succeeded!',
-          //   html: '<h1>You successfully signed up!</h1>'
-          // });
+          return transporter.sendMail({
+            to: email,
+            from: senderInfo.user,
+            subject: 'Signup succeeded!',
+            html: '<h1>You successfully signed up!</h1>'
+          });
         })
-        // .catch(err => {
-        //   console.log(err);
-        // });
+        .catch(err => {
+          console.log(err);
+        });
     })
     .catch(err => {
       console.log(err);
@@ -110,5 +116,19 @@ exports.postLogout = (req, res, next) => {
   req.session.destroy(err => {
     console.log(err);
     res.redirect('/');
+  });
+};
+
+exports.getReset = (req, res, next) => {
+  let message = req.flash('error');
+  if (message.length > 0) {
+    message = message[0];
+  } else {
+    message = null;
+  }
+  res.render('auth/reset', {
+    path: '/reset',
+    pageTitle: 'Reset Passowrd',
+    errorMessage: message
   });
 };

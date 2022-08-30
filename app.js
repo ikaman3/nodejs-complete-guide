@@ -1,4 +1,5 @@
 const path = require('path');
+const mongodbInfo = require('./config/mongodb-info.json');
 
 const express = require('express'); 
 const bodyParser = require('body-parser');
@@ -11,8 +12,7 @@ const flash = require('connect-flash');
 const errorController = require('./controllers/error');
 const User = require('./models/user');
 
-const MONGODB_URI =
-  '';
+const MONGODB_URI = mongodbInfo.uri;
 
 const app = express();
 const store = new MongoDBStore({
