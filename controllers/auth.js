@@ -171,7 +171,10 @@ exports.postReset = (req, res, next) => {
 exports.getNewPassword = (req, res, next) => {
   const token = req.params.token;
   User
-  .findOne({ resetToken: token, resetTokenExpriation: {$gt: Date.now()} })
+  .findOne({ 
+    resetToken: token, 
+    resetTokenExpriation: {$gt: Date.now()} 
+  })
   .then(user => {
     let message = req.flash('error');
     if (message.length > 0) {
