@@ -107,3 +107,4 @@ database.js
 .DS_Store
 config/
 images/
+data/
