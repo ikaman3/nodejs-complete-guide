@@ -73,3 +73,25 @@ getSignup에는 에러가 없기 때문에 빈 배열을 입력한다.
     }
 
 나머지 input도 동일한 방식으로 개선한다.
+=========================================================================================
+338_페이지와 링크 스타일링
+
+.pagination {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.pagination a {
+    text-decoration: none;
+    color: #00695c;
+    padding: 0.5rem;
+    border: 1px solid #00695c;
+    margin: 0 1rem;
+}
+
+.pagination a:hover,
+.pagination a:active,
+.pagination a.active {
+    background: #00695c;
+    color: white;
+}
