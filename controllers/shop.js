@@ -9,6 +9,9 @@ const Order = require('../models/order');
 const ITEMS_PER_PAGE = 2;
 
 exports.getProducts = (req, res, next) => {
+  const page = +req.query.page || 1;
+  let totalItems;
+  
   Product.find()
     .countDocuments()
     .then(numProducts => {
