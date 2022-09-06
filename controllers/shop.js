@@ -1,6 +1,8 @@
+const STRIPE_KEY = require('../config/stripe.json').key;
+
 const fs = require('fs');
 const path = require('path');
-const stripe = require('stripe')('sk_test_51LeuV7D5OkQolJchRWnf7o55DrPyXIlRCQKoHOiFpHfgKJ0fbBOWX9QZQUOjwDX6gDwFWpaIqDdpjSFqop7c4j5200fsang12S');
+const stripe = require('stripe')(STRIPE_KEY);
 
 const PDFDocument = require('pdfkit');
 
