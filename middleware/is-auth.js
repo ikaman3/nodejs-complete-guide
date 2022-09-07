@@ -1,4 +1,4 @@
-// ------------------------------------Mongoose를 이용한 REST API 토큰 검증---------------------
+// --------------------------Mongoose를 이용한 REST API 토큰 검증---------------------
 const jwt = require('jsonwebtoken');
 
 const SECRET_KEY = require('../config/token.json').secret;
