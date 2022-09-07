@@ -1,6 +1,6 @@
 // ------------------------------Mongoose를 이용한 REST API user 인증 라우트-------------------
 const express = require('express');
-const body = require('express-validator');
+const { body } = require('express-validator');
 
 const User = require('../models/user');
 const authController = require('../controllers/auth');

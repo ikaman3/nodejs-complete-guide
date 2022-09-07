@@ -1,6 +1,6 @@
 //----------------------------Mongoose를 이용한 REST API 모델--------------------------
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema();
+const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
   email: {
@@ -17,7 +17,7 @@ const userSchema = new Schema({
   },
   status: {
     type: String,
-    required: true
+    default: 'I am new!'
   },
   posts: [
     {
