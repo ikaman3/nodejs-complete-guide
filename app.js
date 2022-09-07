@@ -117,12 +117,17 @@
 
 // REST API
 
+const mongodbInfo = require('./config/mongodb-info.json');
+
 const express = require('express');
 const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
 
 const feedRoutes = require('./routes/feed');
 
 const app = express();
+
+const MONGODB_URI = mongodbInfo.uri;
 
 app.use(bodyParser.json()); // application/json
 
@@ -135,4 +140,9 @@ app.use((req, res, next) => {
 
 app.use('/feed', feedRoutes);
 
-app.listen(8080);
+mongoose
+  .connect(MONGODB_URI)
+  .then(result => {
+    app.listen(8080);
+  })
+  .catch(err => console.log(err));
