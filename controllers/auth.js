@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 
 const User = require('../models/user');
 
+const SECRET_KEY = require('../config/token.json').secret;
+
 exports.signup = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -61,7 +63,7 @@ exports.login = (req, res, next) => {
           email: loadedUser.email, 
           userId: loadedUser._id.toString() 
         }, 
-        'MyRandomSecretKey', 
+        SECRET_KEY, 
         { expiresIn: '1h' }
       );
       res.status(200).json({ token: token, userId: loadedUser._id.toString() });
