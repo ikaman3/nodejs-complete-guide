@@ -132,7 +132,7 @@ exports.updatePost = (req, res, next) => {
             }
             if (post.creator.toString() !== req.userId) {
                 const error = new Error('Not authrorized.');
-                error.statusCode = 404;
+                error.statusCode = 403;
                 throw error;
             }
             if (imageUrl !== post.imageUrl) {
@@ -166,7 +166,7 @@ exports.deletePost = (req, res, next) => {
             }
             if (post.creator.toString() !== req.userId) {
                 const error = new Error('Not authrorized.');
-                error.statusCode = 404;
+                error.statusCode = 403;
                 throw error;
             }
             clearImage(post.imageUrl);
