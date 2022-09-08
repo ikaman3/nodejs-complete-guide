@@ -64,10 +64,7 @@ exports.createPost = (req, res, next) => {
             res.status(201).json({
                 message: 'Post created successfully!',
                 post: post,
-                creator: {
-                    _id: creator._id,
-                    name: creator.name
-                }
+                creator: { _id: creator._id, name: creator.name }
             });
         })
         .catch(err => {
@@ -80,8 +77,7 @@ exports.createPost = (req, res, next) => {
     
     exports.getPost = (req, res, next) => {
         const postId = req.params.postId;
-        Post
-            .findById(postId)
+        Post.findById(postId)
             .then(post => {
                 if (!post) {
                     const error = new Error('Could not find post.');
@@ -125,7 +121,7 @@ exports.updatePost = (req, res, next) => {
                 throw error;
             }
             if (post.creator.toString() !== req.userId) {
-                const error = new Error('Not authrorized.');
+                const error = new Error('Not authorized.');
                 error.statusCode = 403;
                 throw error;
             }
@@ -152,14 +148,13 @@ exports.deletePost = (req, res, next) => {
     const postId = req.params.postId;
     Post.findById(postId)
         .then(post => {
-            // Check logged in user
             if (!post) {
                 const error = new Error('Could not find post.');
                 error.statusCode = 404;
                 throw error;
             }
             if (post.creator.toString() !== req.userId) {
-                const error = new Error('Not authrorized.');
+                const error = new Error('Not authorized.');
                 error.statusCode = 403;
                 throw error;
             }
