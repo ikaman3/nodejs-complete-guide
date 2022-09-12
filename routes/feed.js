@@ -1,36 +1,38 @@
-const express = require('express');
-const { body } = require('express-validator');
+// ------------------Mongoose를 이용한 REST API Express 서버 라우트----------------------------
 
-const feedController = require('../controllers/feed');
-const isAuth = require('../middleware/is-auth');
+// const express = require('express');
+// const { body } = require('express-validator');
 
-const router = express.Router();
+// const feedController = require('../controllers/feed');
+// const isAuth = require('../middleware/is-auth');
 
-// GET /feed/posts
-router.get('/posts', isAuth, feedController.getPosts);
+// const router = express.Router();
 
-// POST /feed/post
-router.post(
-    '/post', 
-    isAuth, 
-    [
-        body('title').trim().isLength({ min: 5 }),
-        body('content').trim().isLength({ min: 5 })
-    ], 
-    feedController.createPost
-);
+// // GET /feed/posts
+// router.get('/posts', isAuth, feedController.getPosts);
 
-router.get('/post/:postId', isAuth, feedController.getPost);
+// // POST /feed/post
+// router.post(
+//     '/post', 
+//     isAuth, 
+//     [
+//         body('title').trim().isLength({ min: 5 }),
+//         body('content').trim().isLength({ min: 5 })
+//     ], 
+//     feedController.createPost
+// );
 
-router.put('/post/:postId', 
-    isAuth, 
-    [
-        body('title').trim().isLength({ min: 5 }),
-        body('content').trim().isLength({ min: 5 })
-    ], 
-    feedController.updatePost
-);
+// router.get('/post/:postId', isAuth, feedController.getPost);
 
-router.delete('/post/:postId', isAuth, feedController.deletePost);
+// router.put('/post/:postId', 
+//     isAuth, 
+//     [
+//         body('title').trim().isLength({ min: 5 }),
+//         body('content').trim().isLength({ min: 5 })
+//     ], 
+//     feedController.updatePost
+// );
 
-module.exports = router;
+// router.delete('/post/:postId', isAuth, feedController.deletePost);
+
+// module.exports = router;
