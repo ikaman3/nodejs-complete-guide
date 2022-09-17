@@ -1,6 +1,5 @@
 // ------------------GraphQL 서버-----------------------------------------------------
 const path = require('path');
-const fs = require('fs');
 const mongodbInfo = require('./config/mongodb-info.json');
 
 const express = require('express');
@@ -12,6 +11,7 @@ const graphqlHttp = require('express-graphql').graphqlHTTP;
 const graphqlSchema = require('./graphql/schema');
 const graphqlResolver = require('./graphql/resolvers');
 const auth = require('./middleware/auth');
+const { clearImage } = require('./util/file');
 
 const app = express();
 
@@ -97,10 +97,7 @@ mongoose
   })
   .catch(err => console.log(err));
 
-const clearImage = filePath => {
-    filePath = path.join(__dirname, '..', filePath);
-    fs.unlink(filePath, err => console.log(err));
-};
+
 
 
 // ------------------Mongoose를 이용한 REST API Express 서버----------------------------
