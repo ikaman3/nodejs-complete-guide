@@ -159,3 +159,152 @@ result =>
     }
 
 이런 식으로 유동성이 있다. 하나의 엔드 포인트지만 프론트엔드에 받고자 하는 데이터를 정의한다. 프론트엔드에서 데이터를 필터링하는 게 아니라 express-graphql에 의해 서버에서 필터링 된다는 점이 중요하다. 스키마와 리졸버만 정의하면 되는데 사실 리졸버에는 모든 데이터를 반환하지만 서버의 GraphQL이 작업을 책임지기 때문에 신경쓰지 않아도 된다.
+===========================================================================================
+422_뮤테이션 스키마 정의
+
+가입을 통해 사용자를 생성하려면 뮤테이션을 이용해야 한다. 우선 프론트엔드를 조금 수정한다. 더 이상 Socket.io를 사용하지 않으니 Feed.js에서 import openSocket, componentDidMount 함수의 socket 연결 부분을 제거한다. addPost, updatePost도 제거한다. 
+먼저 뮤테이션을 생성한다. 테스트용 리졸버와 스키마를 제거하고 뮤테이션을 추가한다. 
+schema.js => 
+    type Post {
+        _id: ID!
+        title: String!
+        content: String!
+        imageUrl: String!
+        creator: String!
+        createdAt: String!
+        updatedAt: String!
+    }
+
+    type User {
+        _id: ID!
+        name: String!
+        email: String!
+        password: String
+        status: String!
+        posts: [Post!]!
+    }
+
+    input UserInputData {
+        email: String!
+        name: String!
+        password: String!
+    }
+
+    type RootMutation {
+        createUser(userInput: UserInputData): User!
+    }
+
+    schema {
+        mutation: RootMutation
+    }
+- 쿼리를 만들 때처럼 type에 이름을 짓고 허용하고자 하는 여러 뮤테이션을 정의한다. 
+- createUser에 뮤테이션 인수를 입력 값으로 요청하는데 쿼리 이름 다음에 괄호를 입력하면 리졸버에 넣고 추후에 실행될 인수를 지정한다. 콜론 다음에 데이터의 유형을 정의한다. title: String 처럼 하나씩 작성해도 되지만 하나의 객체 userInput으로 묶었다. 그리고 : 뒤에 반환할 값을 명시한다. 여기서는 User 이다.
+- userInput 객체를 위해 새 타입을 만들 때는 type을 사용하지 않고 입력값 즉, 인수로 사용된 데이터를 위한 특별한 키워드인 input 키워드를 사용하고 UserInputData 라는 객체를 정의한다. 이름은 자유다.
+- 사용자가 생성된 후에 사용자 객체를 받아야 하므로 input이 아닌 type으로 User를 추가한다. _id 필드를 ID! 타입으로 정의했는데 GraphQL이 제공하는 특별한 타입으로 ID로 취급된다는 의미이다.
+- posts 배열에 게시물이 어떻게 보일지 정의해야 하므로 type 키워드로 Post를 정의한다. GraphQL은 날짜를 인식하지 못하므로 String을 사용한다. 마지막 두 개의 날짜 필드가 필요한 이유는 Mongoose 모델에서 타임스탬프를 활성화했기 때문이다.
+===========================================================================================
+423_뮤테이션 분석기 및 GraphiQL 추가하기
+
+createUser 스키마를 정의했으니 사용자를 생성할 수 있게 리졸버가 필요하다. resolvers 파일에 createUser를 추가하고 몇 가지 인수를 입력한다. DB와 상호작용하기 위해 user 모델을 임포트한다.
+resolvers.js =>
+    const User = require('../models/user');
+
+    module.exports = {
+        createUser: async function({ userInput }, req) {
+            // const email = args.userInput.email;
+            const existingUser = await User.findOne({email: userInput.email});
+            if (existingUser) {...}
+            const hashedPw = await bcrypt.hash(userInput.password, 12);
+            const user = new User({
+                email: userInput.email,
+                ...
+            })
+            const createdUser = await user.save();
+            return {...createdUser._doc, _id: createdUser._id.toString()};
+        }
+    }
+- async/await 구문을 사용하기 위해 메서드 작성 방식을 변경한다. then, catch를 써도 된다.
+- 인수는 게시물 ID가 아니라 사용자 입력 데이터이므로 첫 번째 인수로 args 객체를 입력하고 두 번째 인수로 입력하는 req는 중요한 요소가 된다. 이때 들어오는 args 객체에는 스키마에 정의한 모든 데이터를 검색할 수 있다. email, name, password가 인수 데이터이기 때문에 args 객체로 검색할 수 있다. 하지만 args가 갖는 userInput 필드를 사용하는데 args는 이 함수에 전달된 모든 인수를 포함한 객체가 된다. 즉, args가 userInput 필드를 가지고 userInput에는 email, name, password가 있다. 이 방법 외에도 Destructuring을 통해 userInput만 받으면 코드를 줄일 수 있다.
+- 사용자가 존재하는지 확인하는데 async/await을 사용하지 않을 경우 User.findOne 쿼리를 return하고 then 블록을 추가해야 한다. 리졸버에 프로미스를 반환하지 않으면 GraphQL이 결과를 기다리지 않기 때문이다. await을 사용하면 자동으로 반환된다. return 문이 보이지는 않아도 존재한다.
+- 유저가 이미 존재한다면 에러다.
+- bcryptjs로 비밀번호를 해시화하여 저장한다. 
+- new User 객체를 생성하고 DB에 저장하려면 createdUser 상수를 만들어 await user.save()로 지정한다. 그럼 생성된 User 객체를 반환한다.
+- 마지막으로 반환할 데이터는 스키마에 따라 User 객체이다. ...createdUser._doc으로 Mongoose가 추가할 메타데이터를 제외한 사용자 데이터를 포함하며 독립된 속성으로 _id 필드를 추가해서 ._doc을 덮어쓰도록 하는데 ID 필드에서 문자열 필드로 전환한다.
+
+리졸버 정의가 끝났으니 프론트엔드에서 테스트해야 하는데 Postman 외에도 방법이 있다. 뮤테이션을 테스트하기 위해 app.js에서 GraphQL 엔드 포인트를 설정하는 부분에 graphiql을 true로 설정한다. 특정한 툴을 사용할 수 있게 하며 POST 요청만 듣지 않는 이유이기도 하다.
+    app.use('/graphql', graphqlHttp({
+        schema: graphqlSchema,
+        rootValue: graphqlResolver,
+        graphiql: true
+    }));
+현재 실행하고 있는 서버에서 localhost:8080/graphql을 방문하면 GET 요청을 보내게 된다. 그럼 테스트 화면이 나온다. 테스트를 위해 schema에서 query를 추가한다. 리졸버는 필요없고 쿼리만 있으면 된다.
+    type RootQuery {
+        hello: String
+    }
+    schema {
+        query: RootQuery
+        mutation: RootMutation
+    }
+다시 브라우저로 돌아가 새로고침하면 창 오른편에 진행할 수 있는 연산이 나온다. RootMutation을 클릭하면 어떤 뮤테이션이 있고 어떤 데이터를 보내야 하는지 나온다. 왼쪽의 창에서 데이터를 보낼 수도 있다.
+    mutation {
+        createUser(userInput: {email: "...", name: "...", passoword: "..."}) {
+            _id
+            email
+        }
+    }
+- createUser 뮤테이션을 실행하고 userInput에 해당 데이터를 포함한 객체를 입력한다.
+- 중괄호를 추가해서 쿼리가 완료되면 반환할 데이터를 정의한다.
+
+실행을 하면 _id, email이 반환되고 DB를 보면 새로운 사용자가 생성되어 있다.
+===========================================================================================
+424_입력 검증 추가
+
+뮤테이션을 추가하여 DB에 데이터를 저장할 수 있게 됐다. 이때 저장하는 데이터가 유효한지 확인하는 과정이 필요하다. 뷰를 렌더링하는 일반 Node Express 앱과 REST API에서는 Express Validator를 라우트에 미들웨어로 추가했었다. 하지만 GraphQL에는 하나의 라우트만 있고 유일한 엔드 포인트인데 모든 요청을 같은 방식으로 검사하면 안 된다. 필요에 따라 조정할 수 있도록 리졸버에서 유효성 검사를 해야 한다. 리졸버에 엔드포인트가 있으니 들어오는 요청 데이터를 검사한다.
+    npm install --save validator
+Express Validator가 배후에서 사용했던 패키지를 이번에는 코드에 직접 사용한다. 
+resolvers.js =>
+    const validator = require('validator');
+    ...
+    const errors = [];
+    if (!validator.isEmail(userInput.email)) {
+        errors.push({message: '...'});
+    }
+    if (validator.isEmpty(userInput.password) || !validator.isLength(userInput.password, { min : 5 })
+    ) {
+        errors.push({ message: '...' });
+    }
+    if (errors.length > 0) {
+        const error = new Error('Invalid input.');
+        throw error;
+    }
+- Express Validator와 동일한 메서드가 사용되는데 validator 패키지에 기반하기 때문이다. if 문이 true라면 오류를 저장하기 위한 errors 배열에 오류를 푸시한다. 이후에도 필요한 검증을 알맞게 추가한다.
+- if 문을 모두 통과한 후 errors 배열의 길이가 0보다 큰지 확인하여 오류가 발생했는지 확인한다. 
+===========================================================================================
+425_Error Handling
+
+테스트에서 일부러 에러를 발생시켜보면 오류가 나온다. 돌려주는 데이터는 null이고 errors 키에는 모든 오류를 모아둔 배열이 포함되어 있다. 이것도 좋지만 더 자세한 정보를 추가하고 싶을 수도 있다. 이를 위해 GraphQL API를 구성한 app.js 파일에서 formatError라는 구성 옵션을 추가한다. 사실상 GraphQL이 감지한 오류를 받아 우리가 만든 포맷을 반환할 수 있게 해주는 메서드이다.
+    app.use('/graphql', graphqlHttp({
+        ...
+        customFormatErrorFn(err) {
+            if (!err.originalError) {
+                return err;
+            }
+            const data = err.originalError.data;
+            const message = err.message || 'An error occurred.';
+            const code = err.originalError.code || 500;
+            return { message: message, status: code, data: data };
+        }
+    }));
+- 단순히 err를 return하기만 하면 기본값 포맷을 유지한다.
+- originalError는 Express-GraphQL이 사용자나 다른 제3자 패키지의 오류를 감지했을 때 설정된다. 쿼리에 글자가 누락되는 등의 기술적인 오류가 생긴 경우에는 originalError를 갖지 않는다.
+- 마지막으로 나만의 오류 객체를 반환할 수 있는데 여기에 필드를 추가하여 원하는 정보를 포함한다. 
+
+originalError가 있다면 다른 곳에서도 사용할 수 있도록 유용한 정보를 추출할 수 있다. 이는 resolvers.js에서 할 수 있다.
+resolvers.js => 
+    if (errors.length > 0) {
+        const error = new Error('Invalid input.');
+        error.data = errors;
+        error.code = 422;
+        throw error;
+    }
+- 오류가 발생했다면 errors에 data 필드를 추가할 수 있는데 errors는 나의 검증 오류 메시지가 들어있는 오류 배열을 말한다. 또한 코드를 422로 설정하거나 고유의 코딩 시스템을 만들 수 있다.
