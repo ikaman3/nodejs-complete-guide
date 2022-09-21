@@ -308,3 +308,248 @@ resolvers.js =>
         throw error;
     }
 - 오류가 발생했다면 errors에 data 필드를 추가할 수 있는데 errors는 나의 검증 오류 메시지가 들어있는 오류 배열을 말한다. 또한 코드를 422로 설정하거나 고유의 코딩 시스템을 만들 수 있다.
+===========================================================================================
+426_프론트엔드를 GraphQL API에 연결
+
+기존의 프론트엔드 App.js를 보면 REST API에서의 요청을 사용하고 있다. GraphQL에서는 모든 요청을 /graphql 만을 사용한다. body는 GraphQL 쿼리 언어로 구성되어야 한다. 새로운 상수를 생성하고 쿼리 키가 포함된 자바스크립트 객체로 한다. query는 백틱으로 감싸고 테스트로 전송했던 쿼리를 복사 붙여넣기하면 된다.
+Frontend/App.js => signupHandler
+    const graphqlQuery = {
+        query: `
+            mutation {
+                createUser(userInput: {email: "${authData.signupForm.email.value}", name: "${...}", password: "${...}"}) {
+                    _id
+                    email
+                }
+            }
+        `
+    };
+- 값을 사용자 입력에서 가져온 값으로 교체해야 한다. 백틱은 템플릿 리터럴이고 ${}로 값을 주입할 수 있다. 주입된 값에는 ""를 반드시 사용한다. 이 쿼리 언어에서는 문자열을 ""로 표기해야 하기 때문이다.
+    ...
+    fetch('http://localhost:8080/graphql', {
+        ...
+        body: JSON.stringify(graphqlQuery)
+    })
+- url을 변경하고, body에 들어갈 객체로 위에서 작성한 쿼리를 넣는다.
+    .then(res => {
+        return res.json();
+    })
+    .then(resData => {
+        if (resData.errors && resData.errors[0].status === 422) {
+            throw new Error(
+                "Validation failed. Make sure the email address isn't used yet!"
+            );
+        }
+        if (resData.errors) {
+            throw new Error('User creation failed.');
+        }
+        ...
+    })
+- res를 인수로 갖는 첫 번째 then 블록에서 상태 코드는 설정하지 않을 것이므로 확인할 필요가 없다. 200이나 500이 될 것이다.
+- 대신 다음 then 블록에 붙여넣는다. 응답의 바디를 분석할 곳이다. 여기에서 응답 데이터에 오류가 있는지 확인할 수 있는데 첫 오류에서 상태 필드를 확인할 수 있다. 그러므로 에러가 있는지 확인하고 첫 번째 요소에 대해 status 필드가 있는지 확인한다.
+
+브라우저에서 회원가입을 해보면 Maethod Not Allowed 에러가 발생한다. 이 오류의 원인인 POST 요청이 아닌 OPTIONS 요청에 대한 응답으로 발생하는 오류이다. Express GraphQL이 POST, GET 요청이 아닌 모든 요청을 자동으로 거부한다. 해결을 위해 헤더를 설정한 백엔드의 app.js로 간다.
+app.js =>
+    app.use((req, res, next) => {
+        ...
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(200);
+        }
+        next();
+    });
+- 여기서 요청 메서드가 OPTIONS인지 확인하고 상태코드 200을 반환한다. 상태 코드 200으로 빈 응답을 전송하는 것이다. 밑의 코드(next())가 실행되지 않으므로 OPTIONS 요청은 GraphQL 엔드 포인트에 도달할 수 없지만 유효한 응답을 받게 된다.
+
+다시 브라우저에서 이미 존재하는 이메일로 회원가입을 시도하면 User creation failed 에러가 뜬다. 사용되지 않은 유효한 이메일로 가입하면 성공한다.
+===========================================================================================
+427_로그인 쿼리 및 리졸버 추가
+
+GraphQL의 인증은 어떨까? GraphQL API는 무상태이며 클라이언트 독립적이다. 따라서 대개 보호되는 리소스에 접근할 수 있는 모든 요청에 부착할 수 있는 토큰 등으로 인증하는 방식을 여전히 사용한다. 로그인 액션은 결국 사용자 데이터를 전송하고 토큰을 받기 원하는 일반적인 쿼리와 같다. 
+schema.js에서 실제 쿼리를 정의한다.
+schema.js => 
+    type AuthData {
+        token: String!
+        userId: String!
+    }
+    ...
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+    }
+- login 쿼리를 생성한다. 여러 인수를 사용하고 User가 아닌 데이터를 반환할건데 사용자 ID와 같은 토큰 등의 정보를 포함한 데이터를 반환하게 한다.
+
+이제 리졸버가 필요하다. createUser 뒤에 login 리졸버를 추가한다. 이 리졸버의 목적은 당연히 올바른 email 주소를 가진 사용자를 찾아서 암호를 확인하는 것이다.
+resolvers.js =>
+    login: async function({ email, password }) {
+        const user = await User.findOne({ email: email });
+        if (!user) {
+            const error = new Error('User not found.');
+            error.code = 401;
+            throw error;
+        }
+- 사용자를 인증하지 못했으니 401을 사용한다.
+        const isEqual = await bcrypt.compare(password, user.password);
+        if (!isEqual) {
+            ...
+        }
+        const token = jwt.sign(
+            {
+                userId: user._id.toString(),
+                email: user.email
+            }, 
+            SECRET_KEY, 
+            { expiresIn: '1h' }
+        );
+- 토큰 생성에 여전히 jsonwebtoken 패키지를 사용한다.
+        return { token: token, userId: user._id.toString() };
+    }
+
+이제 로그인을 위한 get 요청처럼 전송할 로그인 쿼리가 생겼다.
+===========================================================================================
+428_로그인 기능 추가
+
+프론트엔드에서 사용자를 로그인하게 해주는 loginHandler로 간다. signupHandler와 마찬가지로 url을 변경하고 POST 요청을 사용한다. 그리고 쿼리를 지정한다.
+App.js => loginHandler
+    const graphqlQuery = {
+      query: `
+        { 
+            login(email: "${...}", password: "${...}") {
+                token
+                userId
+            }
+        }`
+    };
+    ...
+    fetch('http://localhost:8080/graphql', {
+        ...
+        body: JSON.stringify(graphqlQuery)
+    })
+- 일반 쿼리에는 query를 입력할 필요없이 바로 시작해도 된다. { }로 바로 시작하면 된다.
+- 이 쿼리에서 schema.js에 정의한 login 쿼리에 접근한다. login 쿼리에서 email, passowrd를 입력했으니 추출한 데이터를 입력한다.
+- 중괄호 안에 포함시킨 데이터를 가져올 수 있는데 token, userId가 필요하니 표기한다.
+- 이것이 실행하려는 쿼리이고 요청 바디의 JSON.stringify에 입력할 데이터이다.
+
+signupHandler에서 배운것처럼 상태 코드를 확인하는 처리를 작성한다.
+브라우저로 GraphiQL에 접속하여 테스트 쿼리를 작성한다.
+    {
+        login(email:"...", password:"...") {
+            token
+            userId
+        }
+    }
+Result =>
+    {
+        "data": {
+            "login": {
+                "token": "...",
+                "userId": "..."
+            }
+        }
+    }
+- 항상 GraphQL을 통해 추가되는 data 필드를 지니는 객체에도 데이터를 얻는다. 여기에는 쿼리 이름인 login과 응답 데이터가 들어있다. 이 전체 객체는 react 코드의 resData에 해당한다. 그러므로 토큰을 얻고 싶다면 resData.data.login.token으로 접근해야 한다. resData에서 무언가를 검색하는 모든 부분에 똑같이 적용한다.
+===========================================================================================
+429_Post 뮤테이션 생성
+
+이제 사용자가 생겼으니 게시물 작업을 한다. 백엔드의 schema.js에서 시작한다. createPost 뮤테이션을 추가한다.
+schema.js =>
+    input PostInputData {
+        title: String!
+        content: String!
+        imageUrl: String!
+    }
+
+    type RootMutation {
+        ...
+        createPost(postInput: PostInputData): Post!
+    }
+- User는 관련 있는 토큰에서 검색할 수 있고 이미지 업로드는 나중에 따로 살펴볼 것이다. 따라서 여기서는 PostInputData를 얻고 생성된 Post를 반환한다.
+
+resolvers.js => 
+    createPost: async function({ postInput }, req) {
+        const errors = [];
+        if (validator.isEmpty(postInput.title) || 
+        !validator.isLength(postInput.title, { min : 5 })) {
+            ...
+        }
+        if (validator.isEmpty(postInput.content) || 
+        !validator.isLength(postInput.content, { min : 5 })) {
+            ...
+        }
+        if (errors.length > 0) {
+            ...
+        }
+
+        const user = await User.findById(req.userId);
+        if (!user) {
+            ...
+        }
+        const post = new Post({
+            title: postInput.title,
+            ...
+        });
+        const createdPost = await post.save();
+        user.posts.push(createdPost);
+        await user.save();
+        return { 
+            ...createdPost._doc, 
+            _id: createdPost._id.toString(),
+            createdAt: createdPost.createdAt.toISOString(), 
+            updatedAt: createdPost.updatedAt.toISOString() 
+        };
+    }
+- req는 userData를 구하는데 필요하다.
+- 입력에 대한 검증을 추가한다. 사용자를 생성하거나 로그인할 때 사용했던 접근법과 같다. 이 if 문들을 통과했다면 유효한 입력이므로 새로운 Post를 작성할 수 있다. 
+- return의 데이터들이 새로운 post를 추가할 때 반환할 데이터이다.
+
+GraphiQL로 뮤테이션을 입력하면 잘 작동한다.
+===========================================================================================
+430_인증 토큰에서 사용자 데이터 추출
+
+이제 토큰을 검증하고 사용자를 추출해야 한다. 우선 들어오는 요청의 헤더에서 토큰을 확실히 전송해야 한다. 그리고 프론트엔드에서 나가는 요청에 실제 토큰을 부착한다. 이전의 REST API에서는 isAuth 미들웨어를 사용해 토큰을 획득하여 검증했고 사용자 데이터를 추출하여 사용자 데이터를 요청 객체에 부착했었다. 지금 하려는 작업도 매우 유사하다.
+middleware 폴더의 is-auth.js 파일을 auth.js로 변경한다. 검증뿐만 아니라 사용자 데이터 또한 주기 때문인데 필수는 아니다. 
+
+middleware/auth.js =>
+module.exports = (req, res, next) => {
+    const authHeader = req.get('Authorization');
+    if (!authHeader) {
+        req.isAuth = false;
+        return next();
+    }
+    ...
+    try {
+        decodedToken = jwt.verify(token, SECRET_KEY);
+    } catch (err) {
+        req.isAuth = false;
+        return next();
+    }
+    if (!decodedToken) {
+        req.isAuth = false;
+        return next();
+    }
+    req.userId = decodedToken.userId;
+    req.isAuth = true;
+    next();
+};
+- 여기에서도 authHeader를 가져야 한다. 설정이 안 됐으면 오류를 띄우지 않고 req.isAuth를 false로 설정한다. 이러면 리졸버에서 처리할 수 있다. 그리고 next를 호출해서 다음 미들웨어로 이어지게 한다.
+- 이후 논리는 이전과 동일하다. 에러가 발생하면 이번에도 req.isAuth를 false로 설정하고 next를 호출한다.
+- 모든 검사를 통과하면 복호화한 토큰에서 userId를 얻는데 이 새로운 속성을 요청에 추가하여 isAuth를 true로 설정하고 next를 호출한다.
+
+수정한 auth.js 파일을 app.js에 임포트하고 GraphQL 엔드포인트 앞에 추가한다.
+app.js =>
+    const auth = require('./middleware/auth');
+    ...
+    app.use(auth);
+- 이 미들웨어는 GraphQL 엔드 포인트에 도달하는 모든 요청에서 실행되며 토큰이 없어도 요청을 거부하지 않는다. 다만 isAuth를 false로 할뿐이다. 그리고 지속 여부를 리졸버에서 결정한다.
+
+이제 리졸버로 간다. createUser에서는 인증 여부를 고려하지 않는다. 그러므로 여기선 아무 작업도 하지 않는다. createPost는 요청이 isAuth인지 확인하고 true가 아닌 경우 게시물 작성에 대한 접근을 막는다.
+resolvers.js => createPost
+    if (!req.isAuth) {
+        const error = new Error('Not authenticated.');
+        error.code = 401;
+        throw error;
+    }
+    ...
+    const user = await User.findById(req.userId);
+    if (!user) {
+        ...
+    }
+    ...
+    user.posts.push(createdPost);
+- 게시물을 작성하기 전에 DB에서 사용자를 가져오는데 auth 미들웨어에서 userId를 요청에 저장했으므로 findOne이 아니라 findById를 사용할 수 있다.
