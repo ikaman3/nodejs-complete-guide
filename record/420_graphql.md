@@ -553,3 +553,606 @@ resolvers.js => createPost
     ...
     user.posts.push(createdPost);
 - 게시물을 작성하기 전에 DB에서 사용자를 가져오는데 auth 미들웨어에서 userId를 요청에 저장했으므로 findOne이 아니라 findById를 사용할 수 있다.
+===========================================================================================
+431_'게시물 작성' 쿼리 전송
+
+프론트엔드의 Feed.js 파일에 있는 finishEditHandler 함수에서 이제 GraphQL 엔드 포인트에 도달해 새로운 사용자를 생성하려고 한다. 우선 기존의 url을 설정하고 다른 메서드를 설정하는 부분을 제거한다.
+Feed.js =>
+    let graphqlQuery = {
+        query: `
+            mutation {
+                createPost(postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "some url") {
+                _id
+                title
+                content
+                imageUrl
+                creator {
+                    name
+                }
+                createdAt
+            }
+          }
+        `
+    };
+
+    fetch('http://localhost:8080/post-image', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Bearer ' + this.props.token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(graphqlQuery)
+    })
+    ...
+    const post = {
+        _id: resData.data.createPost._id,
+        ...
+    };
+    user.posts.push(createdPost);
+    await user.save();
+    return {...};
+- 브라우저의 로그를 보면 data가 추출한 데이터를 표시하는 형식이다. 데이터 필드가 있는 data 객체와 쿼리 이름인 createPost가 있고 중첩된 또 다른 객체에는 해당 쿼리에 대한 필드가 있다. 이제 res.data가 아니라 resData.data.createPost로 접근하여 생성된 게시물의 필드에 접근한다. 
+- user에 저장하여 각 사용자가 작성한 게시물 배열이 저장되도록 해야한다.
+
+게시물을 생성하면 이미지 업로드를 제외한 기능이 작동한다.
+===========================================================================================
+433_'게시물 가져오기' 쿼리 및 리졸버 추가
+
+모든 게시물을 가져올 수 있도록 작업한다. 백엔드의 schema.js에 쿼리를 추가한다.
+schema.js =>
+    type PostData {
+        posts: [Post!]!
+        totalPosts: Int!
+    }
+
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+        posts(page: Int): PostData!
+    }
+- 게시물 배열인 Posts를 예상할 수 있지만 새로운 타입을 만든다. REST API에서 작업했다시피 게시물 배열의 반환뿐만 아니라 DB의 게시물 개수를 나타내는 숫자도 반환해야 하기 때문이다. PostData 타입을 만들고 게시물 배열인 posts 필드와 개수를 나타낼 totalPost 필드를 만든다.
+
+쿼리를 추가했으니 리졸버를 만든다. 인증 코드는 위에서 복사한다.
+resolvers.js =>
+    posts: async function(args, req) {
+        ...
+        const totalPosts = await Post.find().countDocuments();
+        const posts = await Post.find().sort({ createdAt: -1 }).populate('creator');
+        return { posts: posts.map(p => {
+            return { 
+                ...p._doc, 
+                _id: p._id.toString(), 
+                createdAt: p.createdAt.toISOString(), 
+                updatedAt: p.updatedAt.toISOString() 
+            };
+        }), totalPosts: totalPosts };
+    }
+- 첫 인수는 신경쓰지 않으므로 args만 입력한다. 인증된 사용자인지 확인하는 req 코드는 작성해야 한다.
+- return할 객체는 schema에 정의한 객체와 같아야 한다. 이때 posts는 GraphQL이 읽지 못하는 데이터 포맷인 id, createdAt과 같은 필드이므로 그냥 반환할 수는 없다. map으로 배열 안의 모든 요소를 변환한다.
+- 모든 게시물에 대해 동일한 새 객체를 반환하기로 하고 p._doc를 이용해 요소를 가져온다. _id는 p._id로 문자열로 덮어쓴다. 이렇게 각 게시물을 게시물 배열로 변환할 수 있다.
+
+GraphiQL에서 테스트한다.
+query {
+    posts {
+        posts {
+            _id
+            title
+            content
+        }
+        totalPosts
+    }
+}
+결과로 인증되지 않았다는 에러 메시지가 나오는데 토큰이 없으므로 정상이다.
+===========================================================================================
+434_'게시물 작성' 및 '게시물 가져오기' 쿼리 전송
+
+프론트엔드의 Feed.js 파일의 loadPosts로 간다. 
+Feed.js => loadPosts
+    const graphqlQuery = {
+      query: `
+        {
+          posts {
+            posts {
+              _id
+              title
+              content
+              imageUrl
+              creator {
+                name
+              }
+              createdAt
+            }
+            totalPosts
+          }
+        }
+      `
+    };
+- 위쪽의 posts가 쿼리 이름이다.
+    fetch('http://localhost:8080/graphql', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Bearer ' + this.props.token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(graphqlQuery)
+    };
+- 이후 에러 핸들링도 기존 코드와 동일하게 맞춰준다.
+    ...
+    .then(resData => {
+        if (resData.errors) {
+          ...
+        }
+        this.setState({
+          posts: resData.data.posts.posts.map(post => {
+            return {
+              ...post,
+              imagePath: post.imageUrl
+            };
+          }),
+          totalPosts: resData.data.posts.totalPosts,
+          postsLoading: false
+        });
+    })
+- 최종 게시물은 resData.data.posts.posts에서 확인할 수 있다. 왼쪽의 posts가 쿼리, 오른쪽은 쿼리의 반환 데이터에서 posts 필드임을 기억하자
+
+해당 작업을 하며 GraphQL의 유연성이 제 역할을 하고 있음을 느낄 수 있다. 필요 없는 작성자 이메일 같은 정보는 제외하고 지금 필요한 게시물 데이터만 가져오고 있다. 
+===========================================================================================
+435_페이지화 추가
+
+GraphQL의 페이지화는 어떻게 작동할까? posts 쿼리의 코드를 바꿔야하므로 schema.js에서 시작한다. 모든 게시물을 페이지화할 거니까 posts 쿼리에 인수가 필요하다. 접속한 페이지를 정의할 인수의 이름을 page라고 정한다. 타입은 Int이다.
+schema.js =>
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+        posts(page: Int): PostData!
+    }
+
+resolver에서 페이지화를 실행할 수 있다. posts 리졸버에서 args를 page 속성으로 변경한다. 
+resolvers.js =>
+    posts: async function({ page }, req) {
+        if (!req.isAuth) {
+            ...
+        }
+        if (!page) {
+            page = 1;
+        }
+        const perPage = 2;
+        const totalPosts = await Post.find().countDocuments();
+        const posts = await Post.find()
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * perPage)
+            .limit(perPage)
+            .populate('creator');
+        return { posts: posts.map(p => {
+            return {...};
+        }), totalPosts: totalPosts };
+    }
+- 먼저 page를 확인해 페이지 설정 여부를 확인한다. 페이지를 설정하지 않은 경우 page=1로 정의하고 특정 페이지를 지정하지 않으면 항상 페이지 1에서 시작한다.
+- perPage 변수를 2로 정의한다. 이론적으로 이 부분을 인수로 가져올 수 있지만 하드코딩 한다. 대개 프론트엔드 상에서 다양한 페이지 크기 등을 제공하는 드롭다운으로 관리할 때의 작업을 간편하게 하기 위함이다. 
+- 이제 skip, limit으로 페이지화를 설정할 수 있다.
+
+이제 프론트엔드에서 페이지화 작업을 한다. 예제에 이미 작성되어있으므로 page 변수가 존재한다. 쿼리를 이용해 이 변수를 보내야 한다.
+Feed.js => loadPosts
+    const graphqlQuery = {
+        query: `
+            {
+                posts(page: ${page}) {
+                    ...
+                }
+            }
+        `
+    };
+- page 값은 숫자이기 때문에 큰따옴표("")로 감쌀 필요가 없다.
+    ...
+    this.setState(prevState => {
+        ...
+        if (prevState.editPost) {
+            ...
+        );
+        updatedPosts[postIndex] = post;
+        } else {
+            updatedPosts.pop();
+            updatedPosts.unshift(post);
+        }
+        return {...};
+    });
+- 게시물이 두 개만 있을 때 새 게시물을 추가할 경우 세 번째 요소로 뜨지 않도록 하기 위해 updatedPosts.pop()을 추가한다. 요소 하나를 제거하고 새로운 요소를 앞에 띄울 것이다.
+===========================================================================================
+436_이미지 업로드
+
+GraphQL은 JSON 데이터로만 작업할 수 있다. GraphQL을 통해 데이터를 가져올 수 있는 아티클이나 제3자 패키지는 몇 가지가 있다. 하지만 가장 깔끔한 방법은 이미지를 보낼 REST 엔드 포인트 등의 전형적인 엔드 포인트를 이용해 해당 엔드 포인트가 이미지를 저장하고 경로를 반환되게 하는 것이다. 그리고 이미지에 대한 경로로 또 다른 요청을 보내고 나머지 데이터는 GraphQL 엔드 포인트에 요청하는 코드를 app.js에 구현한다. 이 파일을 개별 파일로 아웃소싱할 수 있기 때문이다. 하지만 추가할 라우터는 하나뿐이므로 app.js에서 PUT 요청을 위한 라우터를 만들 것이다.
+app.js => 
+    app.put('/post-image', (req, res, next) => {
+        if (!req.isAuth) {
+            throw new Error('Not authenticated.');
+        }
+        if (!req.file) {
+            return res.status(200).json({ message: 'No file povided.' });
+        }
+        if (req.body.oldPath) {
+            clearImage(req.body.oldPath);
+        }
+        return res.status(201).json({ message: 'File stored.', filePath: req.file.path });
+    });
+    ...
+- auth 미들웨어보다 아래에 작성해야 한다.
+- multer를 사용하여 모든 파일을 추출하고 추출한 파일 정보로 파일 객체를 채워 넣는다. 만약 파일이 없다면 상태코드를 200으로 설정하고 메시지를 띄운다. 이것은 괜찮은 방법이다. 나중에 게시물을 편집할 때 새 이미지를 추가하거나 기존 이미지를 유지할 수 있는데 두 경우를 모두 다룰 수 있다.
+- 기존 이미지가 있다면 지워야하므로 새 함수가 필요하다. feed.js에서 사용했던 clearImage 함수를 복사하여 util의 file.js에 붙여넣는다. 
+
+백엔드에 추가한 경로를 이용해 프론트엔드에서 이 REST API 엔드포인트를 사용할 수 있다. finishEditHandler를 보면 기존 formData가 있는데 image만 남기고 제거한다.
+Feed.js => finishEditHandler
+    const formData = new FormData();
+    formData.append('image', postData.image);
+    if (this.state.editPost) {
+        formData.append('oldPath', this.state.editPost.imagePath);
+    }
+    fetch('http://localhost:8080/post-image', {
+        method: 'PUT',
+        headers: {
+            Authorization: 'Bearer ' + this.props.token
+        },
+        body: formData
+    }).then(res => res.json())
+    .then(fileResData => {
+        const imageUrl = fileResData.filePath;
+        ...
+        const post = {
+            ...
+            imagePath: resData.data.createPost.imageUrl
+        };
+    })
+- 편집 모드인지 확인하기 위해 if문을 사용한다.
+- formData 설정을 완료했으니 graphqlQuery를 보내기 전에 /post-image로 또 다른 쿼리를 보낸다. 백엔드에서 PUT 메서드를 사용했으므로 맞춰준다. 기존 이미지를 대체하니까 PUT이 적합하다. 헤더에서 Content-Type을 설정하지 않아야 바이너리 데이터를 자동으로 전송할 수 있다.
+- 모든 게시물을 로드할 때도 imagePath를 설정했었다. 그러므로 게시물을 편집할 때도 imagePath 필드를 설정해야 한다.
+- 이 fetch 요청이 먼저 이뤄질 것이고 완료되면 응답을 받는다. res.json으로 body를 분석하고 then에는 fileResData에서 filePath를 추출한다. 엔드 포인트에서 filePath 키를 설정했기 때문에 가능하다. 이후 then 블록 전까지 코드를 이 then 블록 안으로 옮긴다.
+===========================================================================================
+438_단일 게시물 보기
+
+스키마에서 새로운 쿼리를 생성한다.
+schema.js =>
+    type RootQuery {
+        ...
+        post(id: ID!): Post!
+    }
+- 가져올 게시물의 id에 ID를 입력해서 Post로 게시물을 반환한다.
+
+리졸버를 추가한다.
+resolvers.js =>
+    post: async function({ id }, req) {
+        if (!req.isAuth) {
+            ...
+        }
+        const post = await Post.findById(id).populate('creator');
+        if (!post) {
+            ...
+        }
+        return {
+            ...post._doc,
+            _id: post._id.toString(),
+            createdAt: post.createdAt.toISOString(),
+            updatedAt: post.updatedAt.toISOString()
+        }
+    }
+- populate를 입력해 ID가 아닌 사용자 데이터도 확인한다.
+
+프론트엔드의 SinglePost.js 파일로 간다.
+SinglePost.js =>
+    const graphqlQuery = {
+      query: `{
+          post(id: "${postId}") {
+            ...
+          }
+        }
+      `
+    };
+    fetch('http://localhost:8080/graphql', {
+        ...
+    })
+    .then(res => {
+        return res.json();
+    })
+    .then(resData => {
+        if (resData.errors) {
+            throw new Error('Fetching post failed.');
+        }
+        this.setState({
+            title: resData.data.post.title,
+            author: resData.data.post.creator.name,
+            image: 'http://localhost:8080/' + resData.data.post.imageUrl,
+            date: new Date(resData.data.post.createdAt).toLocaleDateString('en-US'),
+            content: resData.data.post.content
+        });
+    })
+- 기존의 논리와 동일하게 작성한다. 확인하려는 필드인 creator.name, title, imageUrl 뿐만 아니라 createdAt, content까지 작성한다.
+- 응답을 위해 스키마를 구조를 맞춰야 한다. data가 있고 쿼리 이름인 post가 있다. 그리고 post가 가진 다양한 속성에 접근했으므로 resData.data.post.title 등으로 접근한다.
+===========================================================================================
+439_게시물 업데이트
+
+백엔드의 스키마에서 새 뮤테이션을 추가한다. 게시물 편집은 명백한 뮤테이션이다.
+schema.js =>
+    type RootMutation {
+        ...
+        updatePost(id: ID!, postInput: PostInputData): Post!
+    }
+
+이어서 리졸버를 추가한다.
+resolvers.js =>
+    updatePost: async function({id, postInput}, req) {
+        if (!req.isAuth) {
+            ...
+        }
+        const post = await Post.findById(id).populate('creator');
+- updatePost를 반환할 때 populate('creator')를 작성해서 사용자 전체 데이터를 확인한다.
+        if (!post) {
+            ...
+        }
+        if (post.creator._id.toString() !== req.userId.toString()) {
+            ...
+            error.code = 403;
+            throw error;
+        }
+- 게시물을 만든 사람과 편집하려는 사람이 일치하는지 확인한다.
+        const errors = [];
+        if (validator.isEmpty(postInput.title) || 
+        !validator.isLength(postInput.title, { min : 5 })) {
+            ...
+        }
+        if (validator.isEmpty(postInput.content) || 
+        !validator.isLength(postInput.content, { min : 5 })) {
+            ...
+        }
+        if (errors.length > 0) {
+            ...
+        }
+- 입력 데이터 검증도 수행한다.
+        post.title = postInput.title;
+        post.content = postInput.content;
+        if (postInput.imageUrl !== 'undefined') {
+            post.imageUrl = postInput.imageUrl;
+        }
+- 사용자가 새 이미지를 선택했는지 확인한다. 
+        const updatedPost = await post.save();
+        return {...};
+    }
+- 클라이언트에게 보내는 응답 코드 작성도 완료한다.
+
+프론트엔드의 finishEditHandler로 간다.
+Feed.js => finishEditHandler
+    const imageUrl = fileResData.filePath || 'undefined';
+- filePath가 설정되지 않았다면(새 이미지를 선택하지 않았다면) undefined로 설정한다. undefined일 경우 이전 파일 경로를 유지하는 방법을 써도 된다. 백엔드에서 텍스트 형태의 'undefined'를 검사하고 있기 때문에 필요하다.
+    if (this.state.editPost) {
+        graphqlQuery = {
+            query: `
+                mutation {
+                    updatePost(id: ${...}, postInput: {title: ${...}, content: ${...}, imageUrl: ${...}}) {
+                        ...
+                    }
+                }
+            `
+        };
+    }
+    ...
+    let resDataField = 'createPost';
+    if (this.state.editPost) {
+        resDataField = 'updatePost'
+    }
+    const post = {
+        _id: resData.data[resDataField]._id,
+        title: resData.data[resDataField].title,
+        content: resData.data[resDataField].content,
+        creator: resData.data[resDataField].creator,
+        createdAt: resData.data[resDataField].createdAt,
+        imagePath: resData.data[resDataField].imageUrl
+    };
+- createPost가 아닌 editPost로 보낼 수도 있으므로 편집 모드를 확인한다. 이때 updatePost 뮤테이션이 타깃이다.
+- 응답으로부터 데이터를 추출하는 방법을 변경해야 한다. 기존에는 createPost에 접근하지만 updatePost에 요청을 보내기 때문에 응답 데이터를 저장하는 필드의 이름은 updatePost가 되어야 한다. 그러므로 새로운 변수를 추가해서 편집 모드를 확인하고 업데이트 모드라면 데이터를 추출하는 필드는 updatePost가 되도록 한다.
+- resDataField의 값을 사용해 data 객체에 있는 해당 값의 이름으로 속성에 동적으로 접근한다.
+===========================================================================================
+440_게시물 삭제
+
+역시나 스키마에서 뮤테이션을 추가한다. 
+schema.js =>
+    type RootMutation {
+        ...
+        deletePost(id: ID!): Boolean
+    }
+- 삭제해야 하는 게시물의 id를 얻고 성공 여부를 나타내는 불리언을 반환한다.
+
+리졸버를 추가한다.
+resolvers.js =>
+    deletePost: async function({ id }, req) {
+        if (!req.isAuth) {
+            ...
+        }
+        const post = await Post.findById(id);
+        if (!post) {
+            ...
+        }
+        if (post.creator.toString() !== req.userId.toString()) {
+            ...
+        }
+- 중요한 부분이다. populate로 creator 필드를 채우지 않아서 creator는 _id를 가진 객체가 아니라 그 자체가 id이다. 작성자를 변경하려면 populate를 호출해야 한다.
+        clearImage(post.imageUrl);
+- post.imageUrl이 서버에서 이미지 경로이다.
+        await Post.findByIdAndRemove(id);
+        const user = await User.findById(req.userId);
+        user.posts.pull(id);
+        await user.save();
+        return true;
+    }
+- 게시물을 삭제하면 사용자의 게시물 목록에서도 삭제해야 한다.
+- true를 return 하는 이유는 스키마에서 불리언을 반환한다고 정의했기 때문이다. try-catch 문으로 랩핑해서 실패하면 false를 반환할 수 있는데 코드를 단순히 하기 위해 하지 않았다.
+
+프론트엔드로 간다.
+Feed.js => deletePostHandler
+    deletePostHandler = postId => {
+        this.setState({ postsLoading: true });
+        const graphqlQuery = {
+        query: `
+            mutation {
+                deletePost(id: "${postId}")
+            }
+        `
+        }
+        fetch('http://localhost:8080/graphql', {
+        method: 'POST',
+            ...
+        })
+        .then(res => {
+            return res.json();
+        })
+        .then(resData => {
+            if (resData.errors) {
+                throw new Error('Deleting the post failed.');
+            }
+            this.loadPosts();
+        })
+    };
+- 중첩된 객체가 없으므로 자세한 데이터를 얻을 수는 없다.
+- url을 설정하고 메서드는 항상 POST, 토큰과 헤더를 추가하고 쿼리를 입력한 JSON 데이터를 body로 설정한다.
+- 이전처럼 오류를 처리하지 않고 분석한 응답에서 처리하는데 오류가 발생하면 응답에서 오류 객체를 가지기 때문이다.
+===========================================================================================
+442_사용자 상태 관리
+
+쿼리와 뮤테이션이 필요하다. 쿼리는 상태 획득을 위해 추가한다.
+schema.js =>
+    type RootMutation {
+        ...
+        updateStatus(status: String): User!
+    }
+
+    type RootQuery {
+        ...
+        user: User!
+    }
+- 현재 로그인한 사용자에 인수 없이 일반적인 user 쿼리를 추가한다. 그리고 User 객체를 반환한다.
+- 뮤테이션에 updateStates를 추가할건데 사용자 변경을 신경 쓰지 않으면 updateUser 뮤테이션을 추가할 수 있다. 앱에 이런 기능을 설계하지 않아서 상태에만 특별 뮤테이션을 추가할 수 있다. 기능이 있다면 제네릭 접근법을 사용할 수 있다. 지금은 문자열인 상태를 얻고 업데이트된 사용자를 반환한다.
+
+리졸버를 추가한다.
+resolvers.js =>
+    user: async function(args, req) {
+        if (!req.isAuth) {
+            ...
+        }
+        const user = await User.findById(req.userId);
+        if (!user) {
+            ...
+        }
+        return { ...user._doc, _id: user._id.toString() };
+    },
+- 이론적으로 관심 있는 사용자의 모든 데이터를 가져올 수 있지만 상태만 가져오는 방법으로 구현하였다.
+    updateStatus: async function({status}, req) {
+        if (!req.isAuth) {
+            ...
+        }
+        const user = await User.findById(req.userId);
+        if (!user) {
+            ...
+        }
+        user.status = status;
+        await user.save();
+        return { ...user._doc, _id: user._id.toString() };
+    }
+- 사용자가 있으면 인수로 갖는 새로운 상태에 user.status를 설정하고 갱신한 사용자를 저장하기 위해 user.save를 await 한다. 그리고 프론트엔드에 return 한다.
+
+프론트엔드로 간다.
+Feed.js => componentDidMount
+    const graphqlQuery = {
+        query: `
+            {
+                user {
+                    status
+                }
+            }
+        `
+    };
+    fetch('http://localhost:8080/graphql', {
+        ...
+    })
+    .then(res => {
+        return res.json();
+    })
+    .then(resData => {
+        if (resData.errors) {
+            ...
+        }
+        this.setState({ status: resData.data.user.status });
+    })
+- data가 있고 쿼리 이름인 user가 있다는 것을 명심하자. 쿼리 이름은 항상 데이터가 저장된 곳이다. 그 이후에 status 필드가 있다.
+Feed.js => statusUpdateHandler
+    event.preventDefault();
+    const graphqlQuery = {
+        query: `
+            mutation {
+                updateStatus(status: ${this.state.status}) {
+                    status
+                }
+            }
+        `
+    };
+    fetch('http://localhost:8080/graphql', {
+        method: 'POST',
+        headers: {
+            Authorization: 'Bearer ' + this.props.token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(graphqlQuery)
+    })
+      .then(res => {
+         return res.json();
+      })
+      .then(resData => {
+            if (resData.errors) {
+                ...
+            }
+            console.log(resData);
+      })
+
+===========================================================================================
+443_변수 사용하기
+
+한 가지 최적화 방법이 있다. GraphQL 쿼리에 동적 값을 입력할 때마다. 예를 들어 page 처럼 현재 보간 구문을 사용하고 있다. ${}를 이용해 문자열 리터럴에 값을 주입하고 있다. 하지만 변수를 GraphQL 쿼리에 추가하는 게 추천 방식은 아니다. 
+Feed.js => loadPosts
+    const graphqlQuery = {
+        query: `
+            query FetchPosts($page: Int) {
+                    posts(page: $page) {
+                        ...
+                    }
+                }
+            `,
+            variables: {
+                page: page
+            }
+    };
+뮤테이션은 mutation을 추가해야 했다. 쿼리는 추가할 필요가 없는데 만약 query를 추가했다면 오류가 생겼을 것이다. 이제 다른 것도 추가할 것이므로 query를 추가한다. 이 쿼리에 이름을 부여한다. 여기선 FetchPosts이다.
+이제 이 이름으로 쿼리가 사용할 변수를 지정하기 위해 쿼리 뒤에 소괄호를 추가한다. 변수를 $로 생성하는데 {}는 필요없다. 그리고 변수 이름도 원하는대로 정한다.
+중요한 것은 query FetchPosts($page: Int) 이것은 GraphQL 구문으로, 서버에서 분석된다. 클라이언트에서 실행하는 자바스크립트가 아니다. GraphQL 서버에 내부 변수를 사용하는 쿼리가 있음을 말해준다.
+자바스크립트의 변수를 GraphQL의 변수에 넣기 위해 쿼리 객체에 두 번째 속성을 추가한다. 위의 쿼리 이름이 query인 것처럼 variables 이름을 정확히 써야 한다. 위의 query는 쿼리 표현이고 variables는 쿼리에 입력한 변수에 값을 할당하는 객체이다.
+page가 두 개인데 콜론 왼쪽의 page는 GraphQL에서 사용하는 내부 변수를 가리킨다. 오른쪽의 page는 자바스크립트 변수를 가리킨다.
+
+새 게시물을 추가하면 정상적으로 작동한다. 이제 모든 쿼리를 같은 방식으로 대체할 수 있다.
+===========================================================================================
+444_페이지화 버그 수정
+
+게시물이 2개만 있을 때 새로운 게시물을 추가하면 Next 버튼이 보이지 않는다. Node.js와는 관계 없지만 고쳐본다. 새로운 게시물을 생성하고 기존 게시물에 추가하는 코드로 간다. else 블록을 보면 최종적으로 한 번에 2개의 항목만 렌더링하고 리스트 초반부에 새 게시물을 추가한다. 여기에서 전체 게시물의 개수를 증가시키도록 처리해야 한다.
+Feed.js => finishEditHandler
+    this.setState(prevState => {
+          let updatedPosts = [...prevState.posts];
+          let updatedTotalPosts = prevState.totalPosts;
+          if (prevState.editPost) {
+                const postIndex = prevState.posts.findIndex(
+                p => p._id === prevState.editPost._id
+                );
+                updatedPosts[postIndex] = post;
+          } else {
+                updatedTotalPosts++;
+                if (prevState.posts.length >= 2) {
+                updatedPosts.pop();
+                }
+                updatedPosts.unshift(post);
+          }
+          return {
+            ...
+            totalPosts: updatedTotalPosts
+          };
+    });
+- updatedTotalPosts를 추가한다. 그리고 else 블록의 논리를 변경한다.
