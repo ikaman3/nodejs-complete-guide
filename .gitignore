@@ -108,3 +108,4 @@ database.js
 config/
 images/
 data/
+nodemon.json

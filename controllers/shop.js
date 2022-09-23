@@ -1,8 +1,6 @@
-const STRIPE_KEY = require('../config/stripe.json').key;
-
 const fs = require('fs');
 const path = require('path');
-const stripe = require('stripe')(STRIPE_KEY);
+const stripe = require('stripe')(process.env.STRIPE_KEY);
 
 const PDFDocument = require('pdfkit');
 
