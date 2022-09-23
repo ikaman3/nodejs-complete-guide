@@ -109,3 +109,5 @@ config/
 images/
 data/
 nodemon.json
+server.cert
+server.key
