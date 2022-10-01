@@ -8,5 +8,9 @@ describe('Auth Controller - Login', function() {
     it('should throw an error with code 500 if accessing the database fails', function() {
         sinon.stub(User, 'findOne');
         User.findOne.throws();
+
+        expect(AuthController.login);
+
+        User.findOne.restore();
     });
 });
