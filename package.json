@@ -7,7 +7,7 @@
     "node": "18.9.1"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha",
     "start": "node app.js",
     "start-server": "node app.js",
     "start:dev": "nodemon app.js"
@@ -29,16 +29,20 @@
     "graphql": "^16.6.0",
     "helmet": "^6.0.0",
     "jsonwebtoken": "^8.5.1",
-    "mongodb": "^4.9.1",
-    "mongoose": "^6.6.1",
+    "mongodb": "^4.10.0",
+    "mongoose": "^6.6.3",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^2.3.3",
-    "nodemailer": "^6.7.8",
+    "nodemailer": "^6.8.0",
     "pdfkit": "^0.13.0",
-    "sequelize": "^6.21.6",
+    "sequelize": "^6.23.2",
     "socket.io": "^4.5.2",
-    "stripe": "^10.8.0",
+    "stripe": "^10.12.0",
     "validator": "^13.7.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.6",
+    "mocha": "^10.0.0"
   }
 }
