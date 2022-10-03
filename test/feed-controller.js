@@ -3,6 +3,7 @@ const sinon = require('sinon');
 const mongoose = require('mongoose');
 
 const User = require('../models/user');
+const Post = require('../models/post');
 const FeedController = require('../controllers/feed');
 
 const MONGODB_TEST_URL = require('../config/mongodb-info.json').testUrl;
@@ -60,10 +61,13 @@ describe('Feed Controller', function() {
     after(function(done) {
         User.deleteMany({})
             .then(() => {
-                return mongoose.disconnect();
-            })
-            .then(() => {
-                done();
+                Post.deleteMany({})
+                    .then(() => {
+                        return mongoose.disconnect();
+                    })
+                    .then(() => {
+                        done();
+                    });
             });
     });
 });
