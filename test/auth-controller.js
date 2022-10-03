@@ -8,6 +8,7 @@ const AuthController = require('../controllers/auth');
 const MONGODB_TEST_URL = require('../config/mongodb-info.json').testUrl;
 
 describe('Auth Controller', function() {
+    // 모든 테스트 이전에 단 한 번만 실행되는 함수
     before(function(done) {
         mongoose.connect(MONGODB_TEST_URL)
             .then(result => {
@@ -25,6 +26,11 @@ describe('Auth Controller', function() {
             });
     });
 
+    // 매 테스트 이전에 실행되는 함수
+    beforeEach(function() {});
+    // 매 테스트 이후에 실행되는 함수
+    afterEach(function() {});
+    
     it('should throw an error with code 500 if accessing the database fails', function(done) {
         sinon.stub(User, 'findOne');
         User.findOne.throws();
@@ -65,6 +71,7 @@ describe('Auth Controller', function() {
         });
     });
 
+    // 모든 테스트 이후에 단 한 번만 실행되는 함수
     after(function(done) {
         User.deleteMany({})
             .then(() => {
