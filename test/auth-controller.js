@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const User = require('../models/user');
 const AuthController = require('../controllers/auth');
 
+const MONGODB_TEST_URL = require('../config/mongodb-info.json').testUrl;
+
 describe('Auth Controller - Login', function() {
     it('should throw an error with code 500 if accessing the database fails', function(done) {
         sinon.stub(User, 'findOne');
@@ -27,18 +29,35 @@ describe('Auth Controller - Login', function() {
     });
 
     it('should send a response with a valid user status for an existing user', function(done) {
-        mongoose.connect('mongodb+srv://Max:sadqqwdsa@cluster0.bcol3h1.mongodb.net/test-messages')
+        mongoose.connect(MONGODB_TEST_URL)
             .then(result => {
                 const user = new User({
                     email: 'test@test.com',
                     password: 'abc123',
                     name: 'Tester',
-                    posts: []
+                    posts: [],
+                    _id: '5c0f66b979af55031b34728a'
                 });
                 return user.save();
             })
             .then(() => {
-                
+                const req = { userId: '5c0f66b979af55031b34728a' };
+                const res = {
+                    statusCode: 500,
+                    userStatus: null,
+                    status: function(code) {
+                        this.statusCode = code;
+                        return this;
+                    },
+                    json: function(data) {
+                        this.userStatus = data.status;
+                    }
+                };
+                AuthController.getUserStatus(req, res, () => {}).then(() => {
+                    expect(res.statusCode).to.be.equal(200);
+                    expect(res.userStatus).to.be.equal('I am new!');
+                    done();
+                });
             })
             .catch(err => console.log(err));
     });
