@@ -272,7 +272,6 @@ app.ts =>
     import bodyParser from 'body-parser';
     ...
     app.use(bodyParser.json());
-    app.use(todosRoutes);
     
 todos.ts =>
     import { Router } from 'express';
@@ -318,3 +317,78 @@ routes/todos.ts =>
 작업하는 라이브러이에 대응하는 types 패키지를 설치하는 것을 권장한다.
     npm install --save-dev @types/body-parser
 추가적인 타입스크립트 안정성을 위함이며 사실 여기서 사용하는 용도로는 필요한 것은 아니다.
+===========================================================================================
+508_라우트 완료
+
+/todo/:todoId 에 대한 put 라우트와 delete 라우트를 추가한다. 
+todos.ts =>
+    router.put('/todo/:todoId', (req, res, next) => {
+        const tid = req.params.todoId;
+        const todoIndex = todos.findIndex((todoItem) => todoItem.id === tid);
+- 파라미터로 받은 id를 이용하여 todos 배열에 있는 해당 todo의 인덱스를 찾는다.
+        if (todoIndex >= 0) {
+            todos[todoIndex] = { id: todos[todoIndex].id, text: req.body.text };
+            return res.status(200).json({ message: 'Updated todo', todos: todos });
+        }
+- id는 기존의 것을 유지하고 텍스트만 변경한다.
+        res.status(404).json({ message: 'Could not find todo for this id.' });
+    });
+
+    router.delete('/todo/:todoId', (req, res, next) => {
+        todos = todos.filter((todoItem) => todoItem.id !== req.params.todoId);
+        res.status(200).json({ message: 'Delete todo', todos: todos });
+    });
+
+기존에 배운 간단한 REST API를 이용한 CRUD 작업이다.
+===========================================================================================
+509_API 테스트
+
+컴파일하면 models 폴더의 todo.js는 사실상 비어있는데 interface는 순수한 타입스크립트의 기능이므로 컴파일 과정 중 타입스크립트를 돕지만 자바스크립트 코드는 생성하지 않는다.
+node app.js 로 서버를 실행하고 postman으로 테스트한다. localhost:3000/todo 등에 알맞은 HTTP 메서드와 데이터를 전송한다.
+===========================================================================================
+510_형 변환
+
+req.body, req.params에 접근할 때 req 객체로 시작하는 한 자동 완성이 작동되었다. 이어지는 body는 자동완성 없이 유연하게 액세스 가능한데 타입스크립트가 들어오는 req.body 안에 무엇이 있는지 모르기 때문이다. req.params 도 마찬가지다. 타입스크립트는 body, params 등 중간의 객체 안에 무엇이 있는지 알기 위해 코드의 다른 부분을 분석하지 않는다. 
+정리하자면 body는 any 타입이고, params는 ParamsDictionary 타입이다. ParamsDictionary은 키-값 쌍을 가진 객체로 모든 키가 허용되는 타입이다.
+문제는 이때 타입스크립트의 이점을 완전히 활용하지 못한다는 것이다. req.body.testsss 등 뒤에 잘못된 필드를 입력해도 경고하지 못한다. 
+타입스크립트가 들어오는 요청에서 어떤 유형의 데이터를 받을지 예상은 못하지만 개발자는 알기 때문에 타입스크립트에 알릴 수 있다. 또한 req.body가 어떻게 보여야 할지 알려주기 위해 코드를 조정한다.
+
+    type RequestBody = { text: string };
+    type RequestParams = { todoId: string };
+
+    router.post('/todo', (req, res, next) => {
+        const body = req.body as RequestBody;
+- as 키워드로 특정 타입을 갖도록 타입스크립트에 알린다.
+        const newTodo: Todo = {
+            ...
+            text: body.text,
+- 이제 body 뒤에 잘못된 필드에 texts 등 잘못된 필드에 접근하면 에러가 발생한다.
+        };
+        ...
+    });
+
+    router.put('/todo/:todoId', (req, res, next) => {
+        const params = req.params as RequestParams;
+        const tid = params.todoId;
+        const body = req.body as RequestBody;
+        ...
+    });
+
+    router.delete('/todo/:todoId', (req, res, next) => {
+        const params = req.params as RequestParams;
+        ...
+    });
+
+지금은 어쩌다보니 같은 타입의 req.params를 다루고 있지만 여러 라우트에 같은 패턴으로 각기 다른 별칭을 붙일 수도 있다. 
+===========================================================================================
+511_더 나은 프로젝트 구조
+
+기초적인 코드는 모두 작성하였다. 하지만 폴더 구조에 실수의 여지가 남아있다. 일단 routes 폴더는 있고 controllers 폴더는 없다. 물론 둘로 나누어 컨트롤러 관련 함수를 정리할 수 있지만 현재 한 파일에 전부 둔 이유는 적은 코드로 만든 더미 API이기 때문이다. 
+타입스크립트를 사용하기 때문에 생긴 다른 문제점은 자바스크립트 파일이 항상 타입스크립트 파일 옆에 있다는 것이다. 개발자가 작업을 하는 소스 코드는 타입스크립트 코드뿐이라 이름이 같은 자바스크립트 파일이 옆에 있으면 혼동해서 잘못 작업할 가능성이 충분하다. 컴파일된 자바스크립트 코드는 건들지 않고 타입스크립트 코드만 작업하기 위해 컴파일 된 파일이 다른 곳에 생성되도록 해야한다.
+
+tsconfig.json 파일에서 outDir의 주석을 풀고 생성된 자바스크립트 파일이 저장된 디렉터리를 설정할 수 있다. 예를 들어 ./dist 를 경로로 설정하면 dist라는 하위 폴더를 생성하고 컴파일 된 모든 파일이 해당 폴더에 생성된다. 이제 dist 폴더가 완성된 node 앱을 가지며 소스 코드는 밖에만 존재한다.
+따로 소스 코드를 저장하는 소스 폴더를 만들어서 입력과 출력을 분명히 나눌 수도 있다. src 폴더를 만들고 models, routes, app.ts 파일을 src 폴더로 옮긴다. 다시 구성 파일로 가서 rootDir을 ./src 로 설정해서 타입스크립트 코드를 가진 폴더로 설정한다. 
+즉, outDir은 컴파일된 코드가 존재하고 rootDir은 소스 코드가 존재하는 폴더다. 
+이제 반드시 dist 폴더에 있는 코드를 실행해야 한다는 것을 기억하자. Node.js는 타입스크립트 코드를 실행할 수 없다.
+
+package.json 파일에서 start 스크립트에 "node dist/app.js"를 추가하면 npm start 명령어를 입력하여 컴파일 된 자바스크립트 코드를 기반으로 서버를 가동할 수 있다.
